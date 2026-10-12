@@ -75,7 +75,7 @@
       </div>
       <p class="note">
         {% if view.realized_vol is not none and m.implied_vol is not none %}
-          {% if view.realized_vol < m.implied_vol %}Realized is below implied: an existing lead is more likely to hold than the quote is paying for. This is the thesis the arms trade on.{% else %}Realized is at or above implied: the quote is not underpricing the chance that the lead holds.{% endif %}
+          {% if view.realized_vol < m.implied_vol %}Realized is below implied: an existing lead is more likely to hold than the quote is paying for. This is the thesis the late and mid arms trade on.{% else %}Realized is at or above implied: the quote is not underpricing the chance that the lead holds.{% endif %}
         {% else %}Implied vol is undefined for quotes no volatility can produce (for example 1¢ or 99¢ near expiry).{% endif %}
       </p>
     </article>

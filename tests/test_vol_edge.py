@@ -2,6 +2,7 @@
 
 import math
 from dataclasses import replace
+from statistics import NormalDist
 
 import pytest
 
@@ -48,13 +49,48 @@ def test_required_lead_scales_with_sqrt_time_and_vol():
     assert a == pytest.approx(Z_90 * dollar_sigma(70000, 0.40, 4.0))
 
 
-def test_win_probability_is_phi_of_z_and_monotonic():
-    sigma = dollar_sigma(70000, 0.40, 4.0)
-    assert win_probability(Z_90 * sigma, 70000, 0.40, 4.0) == pytest.approx(0.90, abs=1e-3)
-    assert win_probability(0.0, 70000, 0.40, 4.0) == pytest.approx(0.5)
-    assert win_probability(50, 70000, 0.40, 4.0) > win_probability(50, 70000, 0.40, 8.0)
-    assert win_probability(10, 70000, 0.40, 0.0) == 1.0
-    assert win_probability(-10, 70000, 0.40, 0.0) == 0.0
+def test_win_probability_is_the_log_normal_fair_value():
+    """Regression: win_probability used arithmetic Brownian motion while fair_value, which
+    prices the quotes, was log-normal."""
+    fv = fair_value(70100, 70000, 0.40, 4.0)
+    assert win_probability("yes", 70100, 70000, 0.40, 4.0) == fv
+    assert win_probability("no", 70100, 70000, 0.40, 4.0) == pytest.approx(1 - fv)
+    assert win_probability("yes", 70050, 70000, 0.4, 4.0) > win_probability(
+        "yes", 70050, 70000, 0.4, 8.0
+    )
+    assert win_probability("yes", 70010, 70000, 0.40, 0.0) == 1.0
+    assert win_probability("no", 69990, 70000, 0.40, 0.0) == 1.0
+
+
+@pytest.mark.parametrize("vol", [0.20, 0.40, 0.80])
+@pytest.mark.parametrize("minutes", [1.0, 4.0, 15.0])
+@pytest.mark.parametrize("z", [Z_80, Z_90])
+def test_dollar_lead_gate_agrees_with_the_log_normal_probability(vol, minutes, z):
+    spot = 70000.0
+    lead = required_lead(spot, vol, minutes, z)
+    target = NormalDist().cdf(z)
+    assert win_probability("yes", spot, spot - lead, vol, minutes) == pytest.approx(
+        target, abs=1e-3
+    )
+    assert win_probability("no", spot, spot + lead, vol, minutes) == pytest.approx(target, abs=1e-3)
+
+
+@pytest.mark.parametrize("realized", [0.25, 0.40, 0.60])
+@pytest.mark.parametrize("quote_vol", [0.30, 0.50])
+def test_price_edge_is_the_realized_vs_implied_comparison(realized, quote_vol):
+    strike, minutes = 70000.0, 6.0
+    # the side that is ahead (late and mid arms): cheap exactly when realized < implied
+    ahead = fair_value(70150.0, strike, quote_vol, minutes)
+    iv = implied_vol(ahead, 70150.0, strike, minutes)
+    assert iv is not None
+    edge = win_probability("yes", 70150.0, strike, realized, minutes) - ahead
+    assert (edge > 0) == (realized < iv)
+    # the side that is behind (early arm): cheap exactly when realized > implied
+    behind = fair_value(69950.0, strike, quote_vol, minutes)
+    iv = implied_vol(behind, 69950.0, strike, minutes)
+    assert iv is not None
+    edge = win_probability("yes", 69950.0, strike, realized, minutes) - behind
+    assert (edge > 0) == (realized > iv)
 
 
 def test_fair_value_atm_near_half_and_expiry_binary():

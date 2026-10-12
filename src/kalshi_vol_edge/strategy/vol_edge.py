@@ -1,16 +1,26 @@
 """Realized-vs-implied volatility edge on short-dated binary brackets.
 
-The contract pays $1 if the settlement price is at or above the strike. Under a driftless
-log-normal model with annualised volatility sigma and ``m`` minutes to expiry::
+The contract pays $1 if the settlement price is at or above the strike. Every probability in
+this module comes from one driftless log-normal model, with annualised volatility sigma and
+``t = m / MINUTES_PER_YEAR`` for ``m`` minutes to expiry::
 
-    sigma_window      = spot * sigma * sqrt(m / MINUTES_PER_YEAR)        (dollar std-dev)
-    P(YES settles)    = Phi(lead / sigma_window)   where lead = spot - strike
-    required lead     = z * sigma_window           so that P(hold) >= Phi(z)
+    P(YES settles)    = Phi(d2),  d2 = (ln(spot / strike) - sigma^2 t / 2) / (sigma sqrt(t))
+                        (:func:`fair_value`; :func:`win_probability` is it, or 1 minus it)
+    sigma_window      = spot * sigma * sqrt(t)                          (dollar std-dev)
+    required lead     = z * sigma_window                                (entry gate)
 
-The market quote implies its own sigma (:func:`implied_vol`). The *vol edge* is the gap between
-the sigma realized over the last hour of one-minute candles and the sigma the quote implies.
-When realized vol is lower than implied, a lead that already exists is more likely to hold
-than the market is paying for, and the YES (or NO) contract is cheap.
+The entry gate is stated in dollars of lead, which is the normal approximation of the same
+model: over a 15-minute window ``sigma sqrt(t)`` is about 0.2%, and at the required lead the
+log-normal win probability is within 0.001 of ``Phi(z)`` for sigma between 20% and 80%
+(``tests/test_vol_edge.py`` pins this). The edge itself always uses the log-normal probability.
+
+The market quote implies its own sigma (:func:`implied_vol`). The strategy tests the vol edge in
+price space, ``edge = win_probability(realized sigma) - ask - fee``, which before fees is the
+same test as comparing realized with implied sigma: for the side that is ahead (late and mid
+arms) fair value falls as sigma rises, so a positive edge means realized < implied, and a lead
+that already exists is more likely to hold than the market is paying for. The early arm buys
+the side that is behind, so its edge needs realized > implied. :func:`implied_vol` backs the
+implied number out of the quote for the live page.
 
 Three arms trade the same 15-minute window with different time-to-expiry and confidence:
 
@@ -78,14 +88,6 @@ def required_lead(spot: float, annual_vol: float, minutes_left: float, z: float)
     return z * dollar_sigma(spot, annual_vol, minutes_left)
 
 
-def win_probability(lead: float, spot: float, annual_vol: float, minutes_left: float) -> float:
-    """P(lead holds) = Phi(lead / sigma_window). At expiry: 1 if lead > 0 else 0."""
-    sigma = dollar_sigma(spot, annual_vol, minutes_left)
-    if sigma <= 0:
-        return 1.0 if lead > 0 else 0.0
-    return _NORM.cdf(lead / sigma)
-
-
 def fair_value(spot: float, strike: float, annual_vol: float, minutes_left: float) -> float:
     """Fair YES price: P(settlement >= strike) under the driftless log-normal model."""
     if spot <= 0 or strike <= 0:
@@ -95,6 +97,14 @@ def fair_value(spot: float, strike: float, annual_vol: float, minutes_left: floa
     t = minutes_left / MINUTES_PER_YEAR
     d2 = (math.log(spot / strike) - 0.5 * annual_vol**2 * t) / (annual_vol * math.sqrt(t))
     return _NORM.cdf(d2)
+
+
+def win_probability(
+    side: str, spot: float, strike: float, annual_vol: float, minutes_left: float
+) -> float:
+    """P(``side`` settles in the money): :func:`fair_value` for YES, its complement for NO."""
+    p_yes = fair_value(spot, strike, annual_vol, minutes_left)
+    return p_yes if side == "yes" else 1.0 - p_yes
 
 
 def implied_vol(
@@ -358,7 +368,7 @@ class VolEdgeStrategy:
         need = required_lead(snap.spot, snap.annual_vol, snap.minutes_left, z)
         side = "yes" if lead >= 0 else "no"
         price = snap.yes_ask if side == "yes" else snap.no_ask
-        p_win = win_probability(abs(lead), snap.spot, snap.annual_vol, snap.minutes_left)
+        p_win = win_probability(side, snap.spot, snap.strike, snap.annual_vol, snap.minutes_left)
 
         def result(reason: str, edge: float | None = None, d: Decision | None = None) -> ArmCheck:
             return ArmCheck(arm.name, True, side, price, z, need, p_win, edge, d, reason)
@@ -393,7 +403,7 @@ class VolEdgeStrategy:
         move = snap.lead
         need = self.config.early_min_move_usd
         price = snap.yes_ask
-        p_win = win_probability(move, snap.spot, snap.annual_vol, snap.minutes_left)
+        p_win = win_probability("yes", snap.spot, snap.strike, snap.annual_vol, snap.minutes_left)
 
         def result(reason: str, edge: float | None = None, d: Decision | None = None) -> ArmCheck:
             return ArmCheck(arm.name, True, "yes", price, 0.0, need, p_win, edge, d, reason)

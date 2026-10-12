@@ -11,7 +11,7 @@ A trading terminal and backtester for Kalshi's 15-minute BTC contracts. It is bu
 
 **[Open the static report](https://nadimul96.github.io/kalshi-vol-edge/)** (backtest, settlement basis, reconciliation; no install) · **[Post-mortems](#post-mortems)**
 
-> **Not financial advice.** The live version of this system traded real money for about seven months and ended with a small net loss. Everything the dashboard shows is model output. The [post-mortems](#post-mortems) explain what the data showed.
+> **Not financial advice.** The live version of this system traded real money on Kalshi in March 2026 and ended with a small net loss. Everything the dashboard shows is model output. The [post-mortems](#post-mortems) explain what the data showed.
 
 ## Why it's interesting
 

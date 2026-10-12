@@ -8,6 +8,10 @@ import sys
 import structlog
 
 
+def _stderr_logger(*_: object) -> structlog.PrintLogger:
+    return structlog.PrintLogger(sys.stderr)
+
+
 def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     """Configure structlog once. Secrets are never passed to the logger by this package."""
     processors: list[structlog.typing.Processor] = [
@@ -25,7 +29,8 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
         wrapper_class=structlog.make_filtering_bound_logger(
             logging.getLevelName(level.upper()) if isinstance(level, str) else level
         ),
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
+        # Resolve sys.stderr per logger, not once: it may be swapped (pytest capture, daemons).
+        logger_factory=_stderr_logger,
         cache_logger_on_first_use=False,
     )
 

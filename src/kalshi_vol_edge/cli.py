@@ -31,7 +31,7 @@ from kalshi_vol_edge.backtest.engine import (
 )
 from kalshi_vol_edge.config import CredentialsError, load_settings
 from kalshi_vol_edge.kalshi.fees import breakeven_win_rate, maker_fee, taker_fee
-from kalshi_vol_edge.kalshi.truth import Discrepancy, reconcile_fills, summarize_discrepancies
+from kalshi_vol_edge.kalshi.reconcile import Discrepancy, reconcile_fills, summarize_discrepancies
 from kalshi_vol_edge.logging import configure_logging
 
 EXIT_OK, EXIT_ERROR, EXIT_USAGE = 0, 1, 2

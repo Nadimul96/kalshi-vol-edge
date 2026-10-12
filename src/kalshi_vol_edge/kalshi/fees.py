@@ -1,12 +1,28 @@
 """Kalshi fee schedule and the edge arithmetic that depends on it.
 
-Formulas (Kalshi fee schedule, verified March 2026):
+Formulas, per fill::
 
     taker fee = ceil(0.07   * C * P * (1 - P) * 10000) / 10000
     maker fee = ceil(0.0175 * C * P * (1 - P) * 10000) / 10000
 
-where ``C`` is the contract count and ``P`` the price in dollars. Index markets (S&P, Nasdaq)
-use half the multipliers. Holding a contract to expiry incurs no exit fee.
+where ``C`` is the contract count and ``P`` the price in dollars. Holding a contract to expiry
+incurs no exit fee.
+
+What is verified, and what is assumed
+-------------------------------------
+Kalshi's "Fee Rounding" API page (docs.kalshi.com/getting_started/fee_rounding, read October
+2026) says the model fee is rounded up to $0.000001, the balance change is then floored onto the
+member's grid ($0.0001 for direct members, $0.01 for members clearing through an FCM), and the
+rounding overpayment goes into a per-order accumulator that is rebated on later fills of the
+same order. Its worked example, a model fee of $0.00363825 on one contract at 5.5c, is exactly
+``0.07 * 0.055 * 0.945``, which confirms the taker multiplier; the test suite reproduces it.
+
+So the ceiling to $0.0001 above is exact for a direct member's single-fill order. It overstates
+a multi-fill order by less than $0.0001 per fill (the accumulator rebates that), and it
+understates an FCM-cleared account, whose fills round to whole cents before rebates. The maker
+multiplier (a quarter of taker) and the half rate for index markets (S&P, Nasdaq) come from
+Kalshi's fee schedule as the live system used it; the schedule PDF was not reachable when this
+was re-checked, so treat those two as assumptions.
 
 Two lessons from live trading are encoded here rather than left in a README:
 

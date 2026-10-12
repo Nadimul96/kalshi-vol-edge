@@ -11,7 +11,7 @@ Two separate mistakes compounded:
 
 ## The math
 
-Kalshi's taker fee is `0.07 × C × P × (1 − P)` dollars for `C` contracts at price `P`, rounded up to the nearest hundredth of a cent. It peaks at P = 0.50, exactly where most two-sided structures sit. A round trip on a two-leg structure near the money pays that four times. Holding a single leg to expiry pays it once, because settlement has no exit fee.
+Kalshi's taker fee is `0.07 × C × P × (1 − P)` dollars for `C` contracts at price `P`. For a direct member's single fill it rounds up to the nearest hundredth of a cent; accounts that clear through an FCM round to the cent, with a per-order rebate of the overpayment ([Kalshi's fee-rounding notes](https://docs.kalshi.com/getting_started/fee_rounding); the assumptions are spelled out in [`kalshi/fees.py`](../../src/kalshi_vol_edge/kalshi/fees.py)). It peaks at P = 0.50, exactly where most two-sided structures sit. A round trip on a two-leg structure near the money pays that four times. Holding a single leg to expiry pays it once, because settlement has no exit fee.
 
 ## What changed
 

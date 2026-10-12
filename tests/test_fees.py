@@ -5,6 +5,7 @@ import math
 import pytest
 
 from kalshi_vol_edge.kalshi.fees import (
+    TAKER_MULTIPLIER,
     breakeven_win_rate,
     expected_value,
     maker_fee,
@@ -33,6 +34,15 @@ def test_fee_rounds_up_to_hundredth_of_cent():
     raw = 0.07 * 7 * 0.68 * 0.32
     assert taker_fee(7, 0.68) == math.ceil(raw * 10000) / 10000
     assert taker_fee(7, 0.68) >= raw
+
+
+def test_matches_kalshi_fee_rounding_worked_example():
+    # docs.kalshi.com/getting_started/fee_rounding: one contract at 5.5c has a model fee of
+    # $0.00363825 (= 0.07 * 0.055 * 0.945). A direct member's balance moves on a $0.0001 grid:
+    # -0.055 - 0.003639 = -0.058639 floors to -0.0587, a total fee of $0.0037.
+    model_fee = TAKER_MULTIPLIER * 1 * 0.055 * (1 - 0.055)
+    assert model_fee == pytest.approx(0.00363825, abs=1e-12)
+    assert taker_fee(1, 0.055) == 0.0037
 
 
 def test_fee_scales_with_contracts():

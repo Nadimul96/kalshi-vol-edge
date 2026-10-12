@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "description": "Recorded Kalshi BTC bracket markets (settled) and Coinbase BTC-USD 1-minute candles, 2026-03-22/23.",
+  "asset": "BTC",
+  "candles": {
+    "file": "candles_BTC_1m.json",
+    "source": "Coinbase Exchange public API, GET /products/BTC-USD/candles, granularity=60",
+    "format": "[unix_ts, low, high, open, close, volume] per row, ascending",
+    "start": "2026-03-22T00:00:00+00:00",
+    "end": "2026-03-23T11:59:00+00:00",
+    "rows": 2160
+  },
+  "markets": {
+    "KXBTC15M": {
+      "file": "markets_KXBTC15M.json",
+      "count": 30,
+      "note": "15-minute 'BTC price at close >= strike' markets; strike is the BRTI value at the previous close"
+    },
+    "KXBTCD": {
+      "file": "markets_KXBTCD.json",
+      "count": 672,
+      "note": "60-minute 'BTC price above threshold' markets; many strikes per event"
+    },
+    "source": "Kalshi public market endpoints (GET /markets, GET /events) recorded after settlement",
+    "settlement_source": "CF Benchmarks Bitcoin Real-Time Index (BRTI); expiration_value is the settlement value Kalshi reported"
+  },
+  "quotes": {
+    "source": "modeled",
+    "note": "No order-book snapshots were recorded for these markets. The backtest models entry quotes as GBM fair value at the implied_vol below plus a half-spread, rounded to cents. Win rate and settlement-basis statistics do not depend on this; P&L does.",
+    "implied_vol": 0.4,
+    "half_spread": 0.02
+  }
+}

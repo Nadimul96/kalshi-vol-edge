@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from kalshi_vol_edge.kalshi.reconcile import reconcile_orders
 from kalshi_vol_edge.kalshi.truth import (
     KalshiTruth,
     cents_to_decimal,
@@ -133,5 +132,11 @@ async def test_sync_to_store_is_idempotent():
         assert first["fills_inserted"] == 2 and first["settlements_upserted"] == 1
         assert second["fills_inserted"] == 0 and second["settlements_upserted"] == 0
         assert store.count_fills() == 2 and store.count_settlements() == 1
-        # the stored fills reconcile cleanly against the API that produced them
-        assert reconcile_orders(store.list_fills(), API_FILLS) == []
+
+
+async def test_sync_to_store_reuses_fills_the_caller_already_fetched():
+    client = _FakeClient()
+    with TradeStore(":memory:") as store:
+        synced = await KalshiTruth(client).sync_to_store(store, API_FILLS[:1])  # type: ignore[arg-type]
+    assert synced["fills_inserted"] == 1
+    client.get_fills.assert_not_awaited()

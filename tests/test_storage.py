@@ -27,6 +27,16 @@ def test_upsert_order_dedupes_on_client_and_platform_ids():
         assert store.has_order("k1") and not store.has_order("k1-retry")
 
 
+def test_list_orders_returns_recorded_orders_for_reconciliation():
+    with TradeStore(":memory:") as store:
+        store.upsert_order("k1", "T", "yes", "0.90", 20, "executed", platform_order_id="p1")
+        store.upsert_order("k2", "T", "no", "0.10", 5, "dry_run")
+        orders = store.list_orders()
+    assert [o["client_order_id"] for o in orders] == ["k1", "k2"]
+    assert orders[0]["platform_order_id"] == "p1" and orders[0]["contracts"] == 20
+    assert orders[0]["action"] == "buy" and orders[0]["created_at"]
+
+
 def test_record_fill_ignores_duplicates_and_preserves_money_as_text():
     fill = {
         "fill_id": "f1",

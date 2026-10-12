@@ -78,6 +78,11 @@ def _load_json(path: Path) -> Any:
     return json.loads(path.read_text())
 
 
+def _print_status(msg: str, as_json: bool) -> None:
+    """Progress lines go to stderr in --json mode so stdout stays parseable."""
+    print(msg, file=sys.stderr if as_json else sys.stdout)
+
+
 def _print_discrepancies(discrepancies: list[Discrepancy], as_json: bool) -> None:
     counts = summarize_discrepancies(discrepancies)
     if as_json:
@@ -102,7 +107,7 @@ def _print_discrepancies(discrepancies: list[Discrepancy], as_json: bool) -> Non
 
 
 def cmd_reconcile(args: argparse.Namespace) -> int:
-    """Reconcile local records against exchange fills (recorded fixture in --dry-run)."""
+    """Reconcile local orders against exchange fills (recorded fixture in --dry-run)."""
     if args.dry_run:
         root = Path(args.fixtures) / "reconcile"
         try:
@@ -111,8 +116,10 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
         except FixtureError as exc:
             _print_err(f"cannot run dry-run reconcile: {exc}")
             return EXIT_USAGE
-        print(
-            f"dry run: {len(local)} local records vs {len(api)} recorded exchange fills from {root}"
+        _print_status(
+            f"dry run: {len(local)} local records vs {len(api)} recorded exchange fills "
+            f"from {root}",
+            args.json,
         )
         _print_discrepancies(reconcile_orders(local, api), args.json)
         return EXIT_OK
@@ -133,11 +140,16 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
         async with KalshiClient(settings) as client:
             with TradeStore(args.db) as store:
                 truth = KalshiTruth(client)
-                synced = await truth.sync_to_store(store)
-                print(f"synced: {synced}")
-                local = store.list_fills()
                 fills = await truth.get_all_fills()
+                # Reconcile what we *recorded* (orders) against what the exchange says, before
+                # the sync copies the exchange's fills into the store for history.
+                local = store.list_orders()
+                _print_status(
+                    f"live: {len(local)} local orders vs {len(fills)} exchange fills", args.json
+                )
                 _print_discrepancies(reconcile_orders(local, fills), args.json)
+                synced = await truth.sync_to_store(store, fills)
+                _print_status(f"synced: {synced}", args.json)
         return EXIT_OK
 
     try:

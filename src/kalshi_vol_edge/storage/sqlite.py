@@ -196,6 +196,11 @@ class TradeStore:
         """True if we already submitted an order with this idempotency key."""
         return self.get_order(client_order_id) is not None
 
+    def list_orders(self) -> list[dict[str, Any]]:
+        """Every order we recorded, oldest first: what reconciliation checks against fills."""
+        rows = self._conn.execute("SELECT * FROM orders ORDER BY created_at").fetchall()
+        return [dict(r) for r in rows]
+
     def count_orders(self) -> int:
         """Number of order rows."""
         return self._count("orders")

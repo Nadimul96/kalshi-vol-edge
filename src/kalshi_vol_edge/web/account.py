@@ -1,8 +1,8 @@
 """Read-only account view for the dashboard, available when a Kalshi key is configured.
 
-Nothing here writes: no orders, no store sync. Reconciliation compares the local database,
-opened with SQLite's read-only mode, against the exchange's fills. Order placement is
-deliberately CLI-only (``kve order``).
+Nothing here writes: no orders, no store sync. Reconciliation compares the orders recorded in
+the local database, opened with SQLite's read-only mode, against the exchange's fills. Order
+placement is deliberately CLI-only (``kve order``).
 """
 
 from __future__ import annotations
@@ -68,14 +68,14 @@ def _position(p: dict[str, Any]) -> Position:
     )
 
 
-def _local_fills(settings: Settings) -> tuple[list[dict[str, Any]], str]:
+def _local_orders(settings: Settings) -> tuple[list[dict[str, Any]], str]:
     path = settings.kve_db_path
     try:
         with TradeStore(path, read_only=True) as store:
-            fills = store.list_fills()
+            orders = store.list_orders()
     except FileNotFoundError:
         return [], f"No local database at {path}; every exchange fill shows as unlogged."
-    return fills, f"Local database {path} opened read-only ({len(fills)} fills)."
+    return orders, f"Local database {path} opened read-only ({len(orders)} orders)."
 
 
 async def load_account(settings: Settings, client: AccountReader | None) -> AccountSnapshot:
@@ -89,7 +89,7 @@ async def load_account(settings: Settings, client: AccountReader | None) -> Acco
         )
     except Exception as exc:  # shown on the page; credentials are never part of the message
         return AccountSnapshot(environment=env, configured=True, error=describe_error(exc))
-    local, note = _local_fills(settings)
+    local, note = _local_orders(settings)
     recent = sorted(fills, key=lambda f: str(f.get("created_time", "")), reverse=True)
     open_positions = [
         _position(p) for p in positions if to_decimal(p.get("position_fp")) != Decimal("0")

@@ -19,12 +19,12 @@
       <tbody>
       {% for r in recon.local %}
       <tr>
-        <td class="num">{{ (r.created_time or r.timestamp or "")[11:19] or "—" }}</td>
+        <td class="num">{{ (r.get("created_time") or r.get("timestamp") or r.get("created_at") or "")[11:19] or "—" }}</td>
         <td class="mono">{{ r.ticker }}</td>
         <td>{{ (r.side or "")|upper }}</td>
-        <td class="r num">{{ value_or_dash(r.count or r.count_fp) }}</td>
-        <td class="r num">{{ value_or_dash(r.fee or r.fee_cost) }}</td>
-        <td>{{ "—" if r.is_taker is none else ("yes" if r.is_taker else "no") }}</td>
+        <td class="r num">{{ value_or_dash(r.get("count") or r.get("count_fp") or r.get("contracts")) }}</td>
+        <td class="r num">{{ value_or_dash(r.get("fee") or r.get("fee_cost")) }}</td>
+        <td>{{ "—" if r.get("is_taker") is none else ("yes" if r.is_taker else "no") }}</td>
       </tr>
       {% else %}
       <tr><td colspan="6" class="muted">No local records</td></tr>

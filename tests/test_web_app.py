@@ -125,6 +125,26 @@ def test_account_with_key_is_read_only(sample_dir, tmp_path):
     assert set(account.calls) == {"balance", "positions:unsettled", "fills"}
 
 
+def test_account_reconciles_recorded_orders_against_exchange_fills(sample_dir, tmp_path):
+    from kalshi_vol_edge.storage.sqlite import TradeStore
+
+    key = tmp_path / "kalshi.pem"
+    key.write_text("not used: the account client is faked")
+    db = tmp_path / "kve.sqlite3"
+    with TradeStore(db) as store:
+        store.upsert_order(
+            "vol_edge_15m_late_BTC_KXBTC15M-X", "KXBTC15M-X-00", "yes", "0.5", 2, "executed"
+        )
+    settings = _settings(
+        sample_dir, kalshi_api_key_id="test-key", kalshi_private_key_path=key, kve_db_path=db
+    )
+    app = create_app(settings, market_data=FakeMarketData(), account_client=FakeAccount())
+    with TestClient(app) as c:
+        html = c.get("/account").text
+    assert "opened read-only (1 orders)" in html
+    assert "phantom trade" in html and "is not in local state" in html
+
+
 def test_static_assets_and_health(client):
     assert client.get("/static/app.css").status_code == 200
     assert client.get("/static/app.js").status_code == 200

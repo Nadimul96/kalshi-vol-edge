@@ -167,15 +167,16 @@ class KalshiTruth:
             }
         return out
 
-    async def sync_to_store(self, store: TradeStore) -> dict[str, int]:
+    async def sync_to_store(
+        self, store: TradeStore, fills: list[dict[str, Any]] | None = None
+    ) -> dict[str, int]:
         """Write exchange fills and settlements into the local store idempotently.
 
-        Re-running this is safe: fills dedupe on ``fill_id``, settlements on ``ticker``.
-        Returns counts of rows actually inserted.
+        Re-running this is safe: fills dedupe on ``fill_id``, settlements on ``ticker``. Pass
+        ``fills`` when the caller already fetched them. Returns counts of rows actually inserted.
         """
-        fills, settlements = await asyncio.gather(
-            self.get_all_fills(), self._client.get_settlements()
-        )
+        fills = await self.get_all_fills() if fills is None else fills
+        settlements = await self._client.get_settlements()
         inserted_fills = sum(1 for f in fills if store.record_fill(f))
         upserted_settlements = sum(1 for s in settlements if store.upsert_settlement(s))
         store.commit()

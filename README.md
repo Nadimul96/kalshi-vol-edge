@@ -1,58 +1,90 @@
 # kalshi-vol-edge
 
-A small trading system for Kalshi's 15-minute BTC bracket contracts, built around the parts that are easy to get wrong: which index actually settles the contract, what the exchange says happened versus what your database thinks happened, and what fees really cost.
+A trading terminal and backtester for Kalshi's 15-minute BTC contracts. It is built around the parts that are easy to get wrong: which index actually settles the contract, what the exchange says happened versus what your database thinks happened, and what fees really cost.
 
 [![CI](https://github.com/Nadimul96/kalshi-vol-edge/actions/workflows/ci.yml/badge.svg)](https://github.com/Nadimul96/kalshi-vol-edge/actions/workflows/ci.yml)
-![Python 3.11 | 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
+![Python 3.11 | 3.12 | 3.13](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
+![uv](https://img.shields.io/badge/packaged%20with-uv-6340ac)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-> **Not financial advice.** The live version of this system traded real money for about seven months and ended with a small net loss. The [post-mortems](#post-mortems) explain what the data showed.
+![The live dashboard: an open BTC 15-minute market priced by the model, with spot, realized vs implied vol, recent settlements and per-arm status](docs/media/dashboard-live.webp)
 
-## Architecture
+**[Open the static report](https://nadimul96.github.io/kalshi-vol-edge/)** (backtest, settlement basis, reconciliation; no install) · **[Post-mortems](#post-mortems)**
+
+> **Not financial advice.** The live version of this system traded real money for about seven months and ended with a small net loss. Everything the dashboard shows is model output. The [post-mortems](#post-mortems) explain what the data showed.
+
+## Why it's interesting
+
+- **Settlement-aware pricing.** Kalshi BTC settles on the CF Benchmarks BRTI, a 60-second average across five exchanges. The feed is Coinbase, a constituent, and every backtest, the static report and the live page measure the Coinbase-vs-BRTI basis instead of assuming it is zero. In the sample, 2 of 30 markets settled on the other side of the strike from Coinbase. [`data/prices.py`](src/kalshi_vol_edge/data/prices.py), [`web/live.py`](src/kalshi_vol_edge/web/live.py)
+- **One strategy code path, everywhere.** `VolEdgeStrategy.diagnose` returns each arm's z-score, required lead, win probability, edge and the reason it does or does not fire. The backtest's `evaluate` and the live dashboard both use it, so the UI can never disagree with the replay. [`strategy/vol_edge.py`](src/kalshi_vol_edge/strategy/vol_edge.py)
+- **Exchange as source of truth.** Local state is a claim; exchange fills are facts. Reconciliation catches phantom orders, fills that happened after a crash, and fees recorded as maker that were charged as taker. The dashboard reconciles live against a SQLite file opened in read-only mode. [`kalshi/truth.py`](src/kalshi_vol_edge/kalshi/truth.py), [`storage/sqlite.py`](src/kalshi_vol_edge/storage/sqlite.py)
+- **Loud-failure, deterministic backtest.** No silent fallback to synthetic data, no look-ahead, no randomness. Quotes that were not recorded are declared as modeled, and the report says so at the top. [`backtest/engine.py`](src/kalshi_vol_edge/backtest/engine.py)
+- **A dashboard with no frontend build.** FastAPI renders Jinja templates; about 130 lines of vanilla JS poll an HTML fragment and add chart hover. Charts are hand-made SVG computed in Python and unit-tested. The same templates render the static report. [`web/`](src/kalshi_vol_edge/web)
+
+## Quickstart
+
+Needs [uv](https://docs.astral.sh/uv/). No account and no API key.
+
+```bash
+git clone https://github.com/Nadimul96/kalshi-vol-edge && cd kalshi-vol-edge
+uv run kve dashboard            # http://127.0.0.1:8000
+```
+
+Other commands, all key-free:
+
+```bash
+uv run kve backtest --fixtures data/sample           # replay the recorded sample
+uv run kve reconcile --dry-run                       # reconcile recorded orders vs fills
+uv run kve report --fixtures data/sample --out site  # the static report, open site/index.html
+uv run kve doctor                                    # what works, what is missing
+```
+
+### What's free
+
+| Feature | Needs |
+| --- | --- |
+| Live page: open markets, Coinbase spot, model fair value, vol, per-arm status | Nothing (Kalshi and Coinbase public market data) |
+| Backtest, settlement basis, reconciliation pages, static report | Nothing (recorded fixture in [`data/sample`](data/sample)) |
+| Account page: balance, positions, fills, live reconciliation (read-only) | A Kalshi API key. The **demo exchange is free** (paper money) |
+| `kve order` | A Kalshi API key. Uses the demo exchange unless you pass `--live` |
+
+To add a key: create an account on Kalshi's demo exchange, generate an API key (the private key downloads once as a PEM file), then `cp .env.example .env` and set `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PATH`. Keys are per exchange: a demo key only works on demo. Run `uv run kve doctor` to check.
+
+## How it works
 
 ```
-  Coinbase 1m candles ─┐                    (BRTI constituent; basis measured, not assumed)
-                       ├─▶ strategy/vol_edge ──▶ execution ──▶ kalshi/client ──▶ Kalshi API
-  Kalshi market data ──┘    realized vs implied   idempotent      RSA-PSS signed
-                            vol, z-score entry    client_order_id
-                            fee-aware edge              │
-                                                        ▼
-                                      kalshi/truth ◀── fills, positions, settlements
-                                      exchange = source of truth
-                                                        │
-                                                        ▼
-                                      storage/sqlite   idempotent writes, Decimal money
+  Coinbase spot + 1m candles ─┐                    (BRTI constituent; basis measured, not assumed)
+                              ├─▶ strategy/vol_edge ──▶ execution ──▶ kalshi/client ──▶ Kalshi API
+  Kalshi markets (public) ────┘    realized vs implied    idempotent     RSA-PSS signed
+          │                        z-score arms           client_order_id
+          │                        diagnose() per arm          │
+          ▼                              │                     ▼
+  web/live ◀─────────────────────────────┘     kalshi/truth ◀── fills, positions, settlements
+  LiveService: per-source cache,               exchange = source of truth
+  last good value on failure                         │
+          │                                          ▼
+          ▼                                    storage/sqlite (Decimal text, idempotent)
+  web/app (FastAPI + Jinja) ── kve dashboard
+  web/site (same templates) ── kve report ──▶ GitHub Pages
 
   backtest/engine replays the same strategy over recorded fixtures, minute by minute.
 ```
 
-## What's technically interesting
+The contract pays $1 if BRTI at close is at or above the strike. Under a driftless log-normal model, the dollar standard deviation over the minutes left is `spot * sigma * sqrt(minutes / minutes_per_year)`, and an arm trades only when the current lead exceeds `z` of those. Sigma is the realized vol of the last sixty one-minute Coinbase closes, clamped to 20-80%. The market's own quote implies a vol; when realized is below implied, a lead that already exists is more likely to hold than the price says. Three arms trade different parts of the window (minutes 3-6, 7-10 left, 3-5.5 left), and every edge is computed after Kalshi's taker fee.
 
-| Piece | Where | Why it matters |
-| --- | --- | --- |
-| Settlement-aware pricing | [`data/prices.py`](src/kalshi_vol_edge/data/prices.py) | Kalshi BTC settles on the CF Benchmarks BRTI, a 60-second average of five exchanges. Binance is not one of them. The feed uses a constituent, and every backtest reports the measured basis between feed and settlement. |
-| Exchange as source of truth | [`kalshi/truth.py`](src/kalshi_vol_edge/kalshi/truth.py) | Local state is a claim; exchange fills are facts. Reconciliation catches phantom orders, unlogged fills after a crash, and fees recorded as maker that were charged as taker. |
-| Idempotent execution | [`execution.py`](src/kalshi_vol_edge/execution.py), [`storage/sqlite.py`](src/kalshi_vol_edge/storage/sqlite.py) | A deterministic `client_order_id` per strategy, arm and event means a crash-and-retry is rejected rather than double-filled. Fills are keyed by exchange id, so re-syncing is a no-op. Money is stored as decimal text, never floats. |
-| Fee-aware edge | [`kalshi/fees.py`](src/kalshi_vol_edge/kalshi/fees.py) | Edge is computed with taker fees by default, because most live fills were taker. Multi-leg fees are multiplied explicitly. |
-| Loud-failure backtesting | [`backtest/engine.py`](src/kalshi_vol_edge/backtest/engine.py) | No silent fallback to synthetic data, no look-ahead, no randomness. Quotes that weren't recorded are labeled as modeled in the output. |
-| Signed client | [`kalshi/client.py`](src/kalshi_vol_edge/kalshi/client.py) | RSA-PSS request signing as a pure, unit-tested function. Credentials only from the environment, never logged. |
+## Screenshots
 
-## Quickstart
+| Backtest (dark) | Settlement basis (light) |
+| --- | --- |
+| ![Backtest page with modeled-quote caveat, equity curve, per-arm stats and trades](docs/media/dashboard-backtest.webp) | ![Settlement basis page with the Coinbase minus BRTI distribution and flagged direction flips](docs/media/dashboard-basis-light.webp) |
 
-```bash
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-
-kve backtest --fixtures data/sample      # replay the recorded sample, no credentials needed
-kve reconcile --dry-run                  # reconcile recorded local orders against recorded fills
-pytest -q && ruff check .
-```
-
-Live endpoints need `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PATH` (see [`.env.example`](.env.example)). Nothing in this README requires them.
+| Reconciliation | Mobile |
+| --- | --- |
+| ![Reconciliation page listing a fee mismatch, a phantom local order and an unlogged exchange fill](docs/media/dashboard-reconcile.webp) | <img src="docs/media/dashboard-live-mobile.webp" alt="Live page at phone width" width="300"> |
 
 ## Results on the sample fixture
 
-The sample in [`data/sample`](data/sample) is about 36 hours of recorded Coinbase candles and 30 settled 15-minute Kalshi markets from March 2026. Order books were not recorded, so entry quotes are modeled; the output says so.
+[`data/sample`](data/sample) holds about 36 hours of recorded Coinbase candles and 30 settled 15-minute Kalshi markets from March 2026 (plus 672 hourly markets). Order books were not recorded, so entry quotes are modeled, and the output says so.
 
 ```
 kalshi-vol-edge backtest
@@ -73,7 +105,7 @@ kalshi-vol-edge backtest
     early  trades=13  win_rate= 38.5% net=$+6.50 fees=$1.05
 
   settlement basis (Coinbase last 1m close - BRTI settlement):
-    markets=30  mean|basis|=$17.31  median|basis|=$13.15  max|basis|=$52.38
+    markets=30  mean|basis|=$17.31  median|basis|=$12.96  max|basis|=$52.38
     direction flips (Coinbase side of strike != settled side): 2
 ```
 
@@ -81,28 +113,67 @@ Thirteen trades on modeled quotes is not evidence of an edge, and the P&L line d
 
 The reconciliation dry run on the recorded fixtures finds one fee recorded as maker that the exchange charged as taker, one phantom local order, and one exchange fill missing from local state.
 
+## Trading safely
+
+Order placement exists only in the CLI. The dashboard is read-only and never imports the order module ([`trading.py`](src/kalshi_vol_edge/trading.py)).
+
+```bash
+uv run kve order --ticker KXBTC15M-... --side yes --price 0.40 --contracts 2          # demo, asks y/N
+uv run kve order --ticker KXBTC15M-... --side yes --price 0.40 --contracts 2 --live   # production
+```
+
+- The demo exchange is the default. Setting `KALSHI_ENVIRONMENT=prod` is not enough to send an order to production; `--live` is.
+- An order above `KVE_MAX_ORDER_USD`, or one that would take your position on that ticker (read from the exchange) above `KVE_MAX_POSITION_CONTRACTS`, is refused before any prompt.
+- A live order must be confirmed by typing its ticker at an interactive terminal. `--yes` is rejected with `--live`.
+
+## Configuration
+
+All variables are optional; see [`.env.example`](.env.example).
+
+| Variable | Required | Default | What it does |
+| --- | --- | --- | --- |
+| `KALSHI_API_KEY_ID` | For account view and orders | empty | Kalshi API key id |
+| `KALSHI_PRIVATE_KEY_PATH` | For account view and orders | empty | Path to the RSA private key (PEM) |
+| `KALSHI_ENVIRONMENT` | No | `demo` | Exchange for account reads (`demo` or `prod`). Orders use demo unless `--live` |
+| `KALSHI_MARKET_DATA_URL` | No | production public API | Where open markets and quotes are read (no key) |
+| `KALSHI_SERIES` | No | `KXBTC15M` | Series shown on the live page |
+| `COINBASE_BASE_URL` | No | `https://api.exchange.coinbase.com` | Spot and candles |
+| `KVE_MAX_POSITION_CONTRACTS` | No | `10` | Per-ticker position cap for `kve order` |
+| `KVE_MAX_ORDER_USD` | No | `10` | Per-order cost cap for `kve order` |
+| `KVE_DB_PATH` | No | `data/kve.sqlite3` | Local SQLite state (read-only from the dashboard) |
+| `KVE_FIXTURES_DIR` | No | `data/sample` | Fixture used by the dashboard's backtest pages |
+
+## Development
+
+```bash
+uv sync                          # create .venv from uv.lock
+uv run ruff check . && uv run ruff format --check .
+uv run mypy                      # strict, on src/kalshi_vol_edge
+uv run pytest -q                 # offline: no network, no keys
+```
+
+CI runs all of the above on Python 3.11, 3.12 and 3.13, plus the backtest and report smoke steps. [`pages.yml`](.github/workflows/pages.yml) builds the static report and deploys it to GitHub Pages.
+
+| Command | Result (macOS, Python 3.12.8; tests and mypy also pass on 3.11.6 and 3.13.1) |
+| --- | --- |
+| `uv run ruff check .` / `ruff format --check .` | All checks passed / already formatted |
+| `uv run mypy` | Success: no issues found in 33 source files |
+| `uv run pytest -q` | 143 passed |
+| `uv run kve backtest --fixtures data/sample` | report above, exit 0 |
+| `uv run kve backtest --fixtures /nonexistent` | `fixture directory not found`, exit 2 |
+
 ## Post-mortems
 
 1. [Pricing against the wrong index](docs/postmortems/01-settlement-source.md): a position priced correctly against Binance lost by $32 against BRTI.
 2. [A vol-edge signal that predicted the wrong side](docs/postmortems/02-anti-predictive-signal.md): 1 win in 35 live hourly trades.
 3. [Fees ate the thin edges](docs/postmortems/03-fees-and-multi-leg.md): taker fills and per-leg fees.
 
-## Verify
+## Status and limitations
 
-Run on macOS, Python 3.11.6:
-
-| Command | Result |
-| --- | --- |
-| `ruff check .` | All checks passed |
-| `pytest -q` | 90 passed |
-| `kve backtest --fixtures data/sample` | report above, exit 0 |
-| `kve backtest --fixtures /nonexistent` | `fixture directory not found`, exit 2 |
-
-CI runs the same on Python 3.11 and 3.12.
-
-## Scope
-
-Extracted from a larger private system. Deliberately left out: sports and other non-crypto markets, other venues, model-training code, and the deployment scripts. What remains is the core that can be run and verified without an account.
+- Extracted from a larger private system. Deliberately left out: sports and other non-crypto markets, other venues, model-training code and deployment scripts.
+- The live page is a monitor, not an execution loop: it shows what each arm would do, and nothing trades automatically.
+- Backtest P&L rests on modeled quotes because order books were not recorded. Win rate and settlement basis do not depend on them.
+- The order path is covered by tests against a stubbed exchange; it has not been exercised against Kalshi's demo exchange from this repository.
 
 ## License
 

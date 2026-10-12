@@ -24,25 +24,26 @@ def test_sample_fixture_replay_is_deterministic(sample_dir: Path):
     assert a.to_dict() == b.to_dict()
     # pinned result of the committed fixture under its declared quote model
     assert a.markets == 30 and a.decision_minutes == 420
-    assert a.trade_count == 13 and a.wins == 5
-    assert a.win_rate == pytest.approx(5 / 13)
-    assert round(a.net_pnl, 2) == 6.50
-    assert round(a.fees, 2) == 1.05
-    assert round(a.max_drawdown, 2) == 6.98
+    assert a.trade_count == 9 and a.wins == 4
+    assert a.win_rate == pytest.approx(4 / 9)
+    assert round(a.net_pnl, 2) == 8.94
+    assert round(a.fees, 2) == 0.72
+    assert round(a.max_drawdown, 2) == 4.55
+    assert all(t.edge >= 0 for t in a.trades)  # every arm applies its min_edge
     assert set(a.by_arm()) == {"early"}
     basis = a.basis_summary()
     assert basis["markets"] == 30 and basis["direction_flips"] == 2
     assert 10 < basis["mean_abs_basis"] < 25
     assert round(basis["median_abs_basis"], 2) == 12.96  # true median of 30 values
     text = format_report(a)
-    assert "MODELED" in text and "trades           : 13" in text
+    assert "MODELED" in text and "trades           : 9" in text
     assert "direction flips" in text
 
 
 def test_hourly_series_replays_all_three_arms(sample_dir: Path):
     report = run_backtest(load_fixture(sample_dir, series="KXBTCD"))
     assert report.markets == 672
-    assert report.trade_count == 125 and report.wins == 45
+    assert report.trade_count == 49 and report.wins == 30
     arms = report.by_arm()
     assert set(arms) == {"early", "mid", "late"}
     assert arms["late"]["trades"] == 18 and arms["late"]["wins"] == 18

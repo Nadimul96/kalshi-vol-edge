@@ -93,23 +93,23 @@ kalshi-vol-edge backtest
   quotes           : MODELED (no recorded order books): fair value at implied vol 40% + 2c half-spread
   markets replayed : 30  (decision minutes: 420)
 
-  trades           : 13
-  wins / win rate  : 5 / 38.5%
-  capital deployed : $21.45
-  gross P&L        : $+7.55
-  fees (taker)     : $1.05
-  net P&L          : $+6.50
-  max drawdown     : $6.98
+  trades           : 9
+  wins / win rate  : 4 / 44.4%
+  capital deployed : $14.34
+  gross P&L        : $+9.66
+  fees (taker)     : $0.72
+  net P&L          : $+8.94
+  max drawdown     : $4.55
 
   by arm:
-    early  trades=13  win_rate= 38.5% net=$+6.50 fees=$1.05
+    early  trades=9   win_rate= 44.4% net=$+8.94 fees=$0.72
 
   settlement basis (Coinbase last 1m close - BRTI settlement):
     markets=30  mean|basis|=$17.31  median|basis|=$12.96  max|basis|=$52.38
     direction flips (Coinbase side of strike != settled side): 2
 ```
 
-Thirteen trades on modeled quotes is not evidence of an edge, and the P&L line depends on the quote model. The settlement-basis line does not: in 2 of 30 markets the feed was on the wrong side of the strike at expiry.
+Nine trades on modeled quotes is not evidence of an edge, and the P&L line depends on the quote model. The settlement-basis line does not: in 2 of 30 markets the feed was on the wrong side of the strike at expiry.
 
 The reconciliation dry run on the recorded fixtures finds one fee recorded as maker that the exchange charged as taker, one phantom local order, and one exchange fill missing from local state.
 

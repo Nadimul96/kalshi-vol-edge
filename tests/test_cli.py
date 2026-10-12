@@ -9,13 +9,13 @@ from kalshi_vol_edge.cli import EXIT_OK, EXIT_USAGE, main
 def test_backtest_on_sample_prints_report(sample_dir: Path, capsys):
     assert main(["backtest", "--fixtures", str(sample_dir)]) == EXIT_OK
     out = capsys.readouterr().out
-    assert "trades           : 13" in out and "net P&L" in out and "max drawdown" in out
+    assert "trades           : 9" in out and "net P&L" in out and "max drawdown" in out
 
 
 def test_backtest_json_output(sample_dir: Path, capsys):
     assert main(["backtest", "--fixtures", str(sample_dir), "--json"]) == EXIT_OK
     data = json.loads(capsys.readouterr().out)
-    assert data["trade_count"] == 13 and len(data["trades"]) == 13
+    assert data["trade_count"] == 9 and len(data["trades"]) == 9
     assert data["quote_source"].startswith("MODELED")
 
 
@@ -33,7 +33,7 @@ def test_backtest_quote_override_changes_result(sample_dir: Path, capsys):
     )
     data = json.loads(capsys.readouterr().out)
     assert "80%" in data["quote_source"]
-    assert data["trade_count"] != 13
+    assert data["trade_count"] != 9
 
 
 def test_reconcile_dry_run_uses_fixture(sample_dir: Path, capsys):

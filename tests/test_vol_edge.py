@@ -157,14 +157,26 @@ def test_mid_arm_window_and_price_band():
 
 def test_early_arm_fades_a_drop_with_yes_only():
     strat = VolEdgeStrategy()
-    drop = _snap(minutes_left=11.0, minutes_elapsed=4.0, spot=69950.0, yes_ask=0.40, no_ask=0.62)
+    drop = _snap(minutes_left=11.0, minutes_elapsed=4.0, spot=69950.0, yes_ask=0.30, no_ask=0.72)
     (d,) = strat.evaluate(drop)
-    assert d.arm == "early" and d.side == "yes" and d.contracts == 5
+    assert d.arm == "early" and d.side == "yes" and d.contracts == 6
+    assert d.edge >= StrategyConfig().early.min_edge
     # a rise is not faded (YES-only filter), nor is a drop smaller than $40
     rise = _snap(minutes_left=11.0, minutes_elapsed=4.0, spot=70050.0, yes_ask=0.60, no_ask=0.42)
     assert strat.evaluate(rise) == []
     small = _snap(minutes_left=11.0, minutes_elapsed=4.0, spot=69970.0, yes_ask=0.45, no_ask=0.57)
     assert strat.evaluate(small) == []
+
+
+def test_early_arm_refuses_negative_edge():
+    """Regression: the early arm skipped the min_edge check and bought overpriced YES."""
+    strat = VolEdgeStrategy()
+    # P(recover a $50 drop with 11 minutes left at 40% vol) is about 0.35: 0.40 is too dear
+    dear = _snap(minutes_left=11.0, minutes_elapsed=4.0, spot=69950.0, yes_ask=0.40, no_ask=0.62)
+    assert strat.evaluate(dear) == []
+    early = next(c for c in strat.diagnose(dear) if c.arm == "early")
+    assert early.edge is not None and early.edge < 0
+    assert early.decision is None and early.reason.startswith("edge -")
 
 
 def test_arms_are_idempotent_per_event():

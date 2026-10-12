@@ -65,15 +65,15 @@ def test_live_page_degrades_gracefully_when_upstreams_are_down(sample_dir):
 def test_backtest_page_shows_modeled_quote_caveat_and_pinned_numbers(client):
     html = client.get("/backtest").text
     assert "Quotes are modeled." in html and "implied vol 40%" in html
-    assert "+$6.50" in html and "38.5%" in html and "Equity curve" in html
-    assert html.count('class="mono">KXBTC15M-') == 13
+    assert "+$8.94" in html and "44.4%" in html and "Equity curve" in html
+    assert html.count('class="mono">KXBTC15M-') == 9
 
 
 def test_backtest_hourly_series_and_json(client):
     html = client.get("/backtest", params={"series": "KXBTCD"}).text
     assert "672 settled markets" in html
     data = client.get("/api/backtest").json()
-    assert data["trade_count"] == 13 and data["quote_source"].startswith("MODELED")
+    assert data["trade_count"] == 9 and data["quote_source"].startswith("MODELED")
 
 
 def test_unknown_series_is_a_clear_error_not_a_crash(client):

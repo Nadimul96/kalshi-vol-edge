@@ -373,7 +373,7 @@ class VolEdgeStrategy:
         fee = entry_fee(contracts, price, arm.is_taker)
         edge = p_win - price - fee / contracts
         if edge < arm.min_edge:
-            return result(f"edge {edge * 100:+.1f}c below {arm.min_edge * 100:.0f}c", edge)
+            return result(_edge_reason(arm, edge), edge)
         decision = Decision(
             arm=arm.name,
             side=side,
@@ -405,6 +405,8 @@ class VolEdgeStrategy:
         contracts = size_contracts(arm.max_position_usd, arm.max_contracts, price)
         fee = entry_fee(contracts, price, arm.is_taker)
         edge = p_win - price - fee / contracts
+        if edge < arm.min_edge:
+            return result(_edge_reason(arm, edge), edge)
         decision = Decision(
             arm=arm.name,
             side="yes",
@@ -426,3 +428,7 @@ def _price_in_band(arm: ArmConfig, price: float) -> bool:
 
 def _band_reason(arm: ArmConfig, price: float) -> str:
     return f"price {price:.2f} outside {arm.min_price:.2f}-{arm.max_price:.2f}"
+
+
+def _edge_reason(arm: ArmConfig, edge: float) -> str:
+    return f"edge {edge * 100:+.1f}c below {arm.min_edge * 100:.0f}c"

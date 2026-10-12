@@ -1,0 +1,55 @@
+{% from "_macros.html" import icon %}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · kalshi-vol-edge</title>
+  <meta name="description" content="Kalshi 15-minute BTC bracket markets: realized vs implied vol model, backtest, settlement basis and exchange-as-truth reconciliation.">
+  <meta name="color-scheme" content="dark light">
+  <link rel="icon" href="{{ links.static }}favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ links.static }}app.css">
+  <script>try{var t=localStorage.getItem("kve-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="{{ nav[0].href }}" aria-label="kalshi-vol-edge home">
+        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M5 15.5 9 11l3.5 3L19 7.5"/></svg>
+        <span class="brand-name">kalshi-vol-edge</span>
+      </a>
+      <nav class="tabs" aria-label="Sections">
+        {% for item in nav %}
+        <a class="tab{% if item.key == active %} is-active{% endif %}" href="{{ item.href }}"{% if item.key == active %} aria-current="page"{% endif %}>{{ item.label }}</a>
+        {% endfor %}
+      </nav>
+      <div class="topbar-right">
+        {% if mode == "app" %}
+        <span class="chip" title="Account reads and CLI orders use this Kalshi environment">
+          <span class="dot {{ 'dot-good' if has_credentials else 'dot-muted' }}"></span>
+          {% if has_credentials %}Key · {{ environment|upper }}{% else %}No key{% endif %}
+        </span>
+        {% else %}
+        <a class="chip" href="{{ repo_url }}#quickstart">{{ icon("terminal", 14) }}Live view runs locally</a>
+        {% endif %}
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch color theme">
+          <span class="when-dark">{{ icon("sun") }}</span><span class="when-light">{{ icon("moon") }}</span>
+        </button>
+      </div>
+    </div>
+  </header>
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    <span>Model output, not financial advice.</span>
+    <span class="sep">·</span>
+    <span>kalshi-vol-edge {{ version }}</span>
+    <span class="sep">·</span>
+    <a href="{{ repo_url }}">Source on GitHub</a>
+    {% if generated is defined %}<span class="sep">·</span><span>Generated {{ generated }}</span>{% endif %}
+  </footer>
+  <div class="tooltip" role="tooltip" hidden></div>
+  <script src="{{ links.static }}app.js" defer></script>
+</body>
+</html>

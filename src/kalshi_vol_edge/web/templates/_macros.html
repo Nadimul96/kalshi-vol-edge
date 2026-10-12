@@ -1,0 +1,72 @@
+{% macro icon(name, size=16) -%}
+<svg class="icon" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == "alert" -%}<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>
+{%- elif name == "info" -%}<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>
+{%- elif name == "check" -%}<path d="m5 12.5 4.5 4.5L19 7.5"/>
+{%- elif name == "clock" -%}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+{%- elif name == "sun" -%}<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+{%- elif name == "moon" -%}<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>
+{%- elif name == "key" -%}<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.3-9.3M17 6l3 3M14.5 8.5l2 2"/>
+{%- elif name == "external" -%}<path d="M14 4h6v6"/><path d="M10 14 20 4"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/>
+{%- elif name == "terminal" -%}<path d="m5 8 4 4-4 4"/><path d="M12 17h7"/>
+{%- elif name == "pause" -%}<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>
+{%- elif name == "x" -%}<path d="M6 6l12 12M18 6 6 18"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% macro kpi(label, value, tone="", hint="", hero=false) -%}
+<div class="kpi{% if hero %} kpi-hero{% endif %}">
+  <div class="kpi-label">{{ label }}</div>
+  <div class="kpi-value num {{ tone }}">{{ value }}</div>
+  {% if hint %}<div class="kpi-hint">{{ hint }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro severity(level) -%}
+{% set icons = {"critical": "alert", "warning": "alert", "info": "info"} %}
+<span class="pill pill-{{ level }}">{{ icon(icons.get(level, "info"), 12) }}{{ level|capitalize }}</span>
+{%- endmacro %}
+
+{% macro callout(kind, title) -%}
+<div class="callout callout-{{ kind }}" role="note">
+  <span class="callout-icon">{{ icon("alert" if kind == "warn" else "info") }}</span>
+  <div><strong>{{ title }}</strong> {{ caller() }}</div>
+</div>
+{%- endmacro %}
+
+{% macro empty(title, icon_name="info") -%}
+<div class="empty">
+  <span class="empty-icon">{{ icon(icon_name, 20) }}</span>
+  <div class="empty-title">{{ title }}</div>
+  <div class="empty-body">{{ caller() }}</div>
+</div>
+{%- endmacro %}
+
+{% macro value_or_dash(v) -%}
+{%- if v is none or v == "" %}—{% elif v is sameas true %}true{% elif v is sameas false %}false{% else %}{{ v }}{% endif -%}
+{%- endmacro %}
+
+{% macro discrepancy_table(rows) -%}
+{% if rows %}
+<div class="table-wrap">
+<table class="table">
+  <thead><tr><th>Severity</th><th>Ticker</th><th>Field</th><th class="r">Local</th><th class="r">Exchange</th><th>What it means</th></tr></thead>
+  <tbody>
+  {% for d in rows %}
+    <tr>
+      <td>{{ severity(d.severity) }}</td>
+      <td class="mono">{{ d.ticker }}</td>
+      <td class="mono muted">{{ d.field }}</td>
+      <td class="r num">{{ value_or_dash(d.local_value) }}</td>
+      <td class="r num">{{ value_or_dash(d.api_value) }}</td>
+      <td class="wrap">{{ d.context }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+{% call empty("No discrepancies", "check") %}Every local record matched an exchange fill on count, price, fee and taker flag.{% endcall %}
+{% endif %}
+{%- endmacro %}

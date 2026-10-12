@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, kpi, empty %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Settlement basis</h1>
+    <p class="sub">Coinbase's last one-minute close before expiry against the CF Benchmarks BRTI value Kalshi settled on · {{ report.series }}</p>
+  </div>
+</div>
+
+<section class="kpis kpis-6">
+  {{ kpi("Direction flips", summary.direction_flips|num, "neg" if summary.direction_flips else "", "Coinbase on the wrong side of the strike at expiry", hero=true) }}
+  {{ kpi("Markets", summary.markets|num) }}
+  {{ kpi("Mean |basis|", summary.mean_abs_basis|usd) }}
+  {{ kpi("Median |basis|", median_abs|usd) }}
+  {{ kpi("Max |basis|", summary.max_abs_basis|usd) }}
+  {{ kpi("Signed mean", signed_mean|usd(2, true), hint="positive: Coinbase above BRTI") }}
+</section>
+
+<section class="grid grid-main">
+  <article class="card">
+    <header class="card-head"><div><h3>Distribution</h3><p class="sub">Coinbase close − BRTI settlement, $10 bins. {{ within_10 }} of {{ summary.markets }} markets within $10.</p></div></header>
+    {% if histogram %}{{ histogram }}{% else %}
+    {% call empty("No settled markets", "info") %}The fixture has no markets with both a Coinbase close and a settlement value.{% endcall %}
+    {% endif %}
+  </article>
+  <article class="card prose">
+    <header class="card-head"><h3>Why this matters</h3></header>
+    <p>Kalshi's BTC markets settle on the BRTI: the simple average of sixty one-second readings of an index built from Coinbase, Bitstamp, Kraken, Gemini and LMAX Digital. No single exchange is the settlement price.</p>
+    <p>This package prices off Coinbase, a constituent, and measures the gap rather than assuming it away. When the model's lead over the strike is smaller than the basis, the outcome is decided by index composition, not by volatility.</p>
+    <p><a href="{{ repo_url }}/blob/main/docs/postmortems/01-settlement-source.md">Post-mortem: pricing against the wrong index {{ icon("external", 12) }}</a></p>
+  </article>
+</section>
+
+<section class="card">
+  <header class="card-head"><div><h3>Markets</h3><p class="sub">Flagged rows are direction flips.</p></div></header>
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Close (UTC)</th><th>Ticker</th><th class="r">Strike</th><th class="r">Coinbase close</th><th class="r">BRTI settlement</th><th class="r">Basis</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr{% if r.direction_flip %} class="row-flag"{% endif %}>
+        <td class="num">{{ r.close_time|utc_time(true) }}</td>
+        <td class="mono">{{ r.ticker }}</td>
+        <td class="r num">{{ r.strike|num(2) }}</td>
+        <td class="r num">{{ r.coinbase_close|num(2) }}</td>
+        <td class="r num">{{ r.settlement|num(2) }}</td>
+        <td class="r num">{{ r.basis|usd(2, true) }}</td>
+        <td><span class="result result-{{ r.result }}">{{ (r.result or "—")|upper }}</span>{% if r.direction_flip %} <span class="pill pill-critical">{{ icon("alert", 12) }}Flip</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

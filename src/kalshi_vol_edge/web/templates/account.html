@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, kpi, empty, callout %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Account</h1>
+    <p class="sub">Read-only view of your Kalshi account. Orders are never placed from the dashboard.</p>
+  </div>
+  {% if account.configured %}<span class="chip"><span class="dot {{ 'dot-warn' if account.environment == 'prod' else 'dot-good' }}"></span>{{ account.environment|upper }} environment</span>{% endif %}
+</div>
+
+{% if not account.configured %}
+<section class="card">
+{% call empty("No Kalshi key configured", "key") %}
+  <p>Everything else in this dashboard works without one. To see positions and fills here, and to reconcile them live:</p>
+  <ol class="steps">
+    <li>Create a free account on Kalshi's <strong>demo</strong> exchange (paper money) and generate an API key in its settings. The private key downloads once as a PEM file.</li>
+    <li>Copy <span class="mono">.env.example</span> to <span class="mono">.env</span> and set <span class="mono">KALSHI_API_KEY_ID</span> and <span class="mono">KALSHI_PRIVATE_KEY_PATH</span>. <span class="mono">KALSHI_ENVIRONMENT</span> defaults to <span class="mono">demo</span>.</li>
+    <li>Restart with <span class="mono">uv run kve dashboard</span>. Run <span class="mono">uv run kve doctor</span> to check the setup.</li>
+  </ol>
+  <p class="muted">Placing orders stays in the CLI: <span class="mono">kve order</span> uses the demo exchange unless you pass <span class="mono">--live</span> and confirm.</p>
+{% endcall %}
+</section>
+{% elif account.error %}
+{% call callout("warn", "Kalshi account request failed.") %}{{ account.error }}. Check the key with <span class="mono">uv run kve doctor</span>; the key id and private key are never shown here.{% endcall %}
+{% else %}
+<section class="kpis kpis-4">
+  {{ kpi("Cash balance", account.balance|float|usd, hero=true) }}
+  {{ kpi("Portfolio value", account.portfolio_value|float|usd) }}
+  {{ kpi("Open positions", account.positions|length) }}
+  {{ kpi("Recent fills", account.fills|length, hint="latest 25") }}
+</section>
+<section class="grid grid-2">
+  <article class="card">
+    <header class="card-head"><h3>Open positions</h3></header>
+    {% if account.positions %}
+    <div class="table-wrap">
+    <table class="table table-compact">
+      <thead><tr><th>Ticker</th><th class="r">Contracts</th><th class="r">Exposure</th><th class="r">Realized</th><th class="r">Fees</th></tr></thead>
+      <tbody>
+      {% for p in account.positions %}
+      <tr><td class="mono">{{ p.ticker }}</td><td class="r num">{{ p.contracts }}</td><td class="r num">{{ p.exposure|float|usd }}</td><td class="r num {{ p.realized_pnl|float|tone }}">{{ p.realized_pnl|float|usd(2, true) }}</td><td class="r num">{{ p.fees_paid|float|usd }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<div class="chart-empty">No open positions</div>{% endif %}
+  </article>
+  <article class="card">
+    <header class="card-head"><h3>Recent fills</h3></header>
+    {% if account.fills %}
+    <div class="table-wrap">
+    <table class="table table-compact">
+      <thead><tr><th>Time (UTC)</th><th>Ticker</th><th>Side</th><th class="r">Qty</th><th class="r">YES price</th><th>Taker</th></tr></thead>
+      <tbody>
+      {% for f in account.fills %}
+      <tr><td class="num">{{ (f.created_time or "")[5:16]|replace("T", " ") }}</td><td class="mono">{{ f.ticker }}</td><td>{{ (f.side or "")|upper }}</td><td class="r num">{{ f.count_fp }}</td><td class="r num">{{ f.yes_price_dollars }}</td><td>{{ "yes" if f.is_taker else "no" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<div class="chart-empty">No fills yet</div>{% endif %}
+  </article>
+</section>
+<div class="page-head page-head-sub">
+  <div><h2>Live reconciliation</h2><p class="sub">{{ account.local_db_note }}</p></div>
+  <span class="chip">{{ recon.source }}</span>
+</div>
+{% include "_reconcile_body.html" %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, kpi, discrepancy_table %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Reconciliation</h1>
+    <p class="sub">Local state is a claim; exchange fills are facts. Matched on ticker, side and time (±5 s), then compared on count, price, fee and taker flag.</p>
+  </div>
+  <span class="chip">{{ recon.source }}</span>
+</div>
+{% include "_reconcile_body.html" %}
+{% endblock %}

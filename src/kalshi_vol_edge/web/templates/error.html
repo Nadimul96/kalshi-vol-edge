@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty %}
+{% block content %}
+<div class="page-head"><div><h1>{{ title }}</h1></div></div>
+<section class="card">
+{% call empty("The fixture could not be loaded", "alert") %}
+  <p class="mono">{{ error }}</p>
+  <p>The backtest never falls back to synthetic data. Point <span class="mono">KVE_FIXTURES_DIR</span> at a directory with <span class="mono">manifest.json</span>, candles and settled markets (default <span class="mono">{{ fixtures }}</span>).</p>
+{% endcall %}
+</section>
+{% endblock %}

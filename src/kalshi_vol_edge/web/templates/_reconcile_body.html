@@ -1,0 +1,58 @@
+{% from "_macros.html" import icon, kpi, discrepancy_table, value_or_dash %}
+<section class="kpis kpis-5">
+  {{ kpi("Critical", counts.critical|num, "neg" if counts.critical else "", "phantom trades, wrong fees", hero=true) }}
+  {{ kpi("Warning", counts.warning|num, hint="unparseable values") }}
+  {{ kpi("Info", counts.info|num, hint="exchange fills missing locally") }}
+  {{ kpi("Local records", recon.local|length) }}
+  {{ kpi("Exchange fills", recon.api|length) }}
+</section>
+<section class="card">
+  <header class="card-head"><h3>Discrepancies</h3><span class="chip num">{{ discrepancies|length }}</span></header>
+  {{ discrepancy_table(discrepancies) }}
+</section>
+<section class="grid grid-2">
+  <article class="card">
+    <header class="card-head"><div><h3>Local records</h3><p class="sub">What the trading process believed</p></div></header>
+    <div class="table-wrap">
+    <table class="table table-compact">
+      <thead><tr><th>Time</th><th>Ticker</th><th>Side</th><th class="r">Qty</th><th class="r">Fee</th><th>Taker</th></tr></thead>
+      <tbody>
+      {% for r in recon.local %}
+      <tr>
+        <td class="num">{{ (r.created_time or r.timestamp or "")[11:19] or "—" }}</td>
+        <td class="mono">{{ r.ticker }}</td>
+        <td>{{ (r.side or "")|upper }}</td>
+        <td class="r num">{{ value_or_dash(r.count or r.count_fp) }}</td>
+        <td class="r num">{{ value_or_dash(r.fee or r.fee_cost) }}</td>
+        <td>{{ "—" if r.is_taker is none else ("yes" if r.is_taker else "no") }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">No local records</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </article>
+  <article class="card">
+    <header class="card-head"><div><h3>Exchange fills</h3><p class="sub">What Kalshi says happened</p></div></header>
+    <div class="table-wrap">
+    <table class="table table-compact">
+      <thead><tr><th>Time</th><th>Ticker</th><th>Side</th><th class="r">Qty</th><th class="r">Fee</th><th>Taker</th></tr></thead>
+      <tbody>
+      {% for f in recon.api %}
+      <tr>
+        <td class="num">{{ (f.created_time or "")[11:19] or "—" }}</td>
+        <td class="mono">{{ f.ticker }}</td>
+        <td>{{ (f.side or "")|upper }}</td>
+        <td class="r num">{{ value_or_dash(f.count_fp) }}</td>
+        <td class="r num">{{ value_or_dash(f.fee_cost) }}</td>
+        <td>{{ "—" if f.is_taker is none else ("yes" if f.is_taker else "no") }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">No exchange fills</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </article>
+</section>

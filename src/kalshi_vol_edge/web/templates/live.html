@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Live</h1>
+    <p class="sub">Open {{ view.series }} markets priced by the strategy's model. Kalshi and Coinbase public data, no key needed.</p>
+  </div>
+  <div class="page-head-right">
+    <span class="chip chip-warn">Model output, not advice</span>
+    <span class="chip" data-refresh-state><span class="dot dot-good" data-refresh-dot></span><span data-refresh-label>Auto-refresh {{ (refresh_ms / 1000)|int }}s</span></span>
+  </div>
+</div>
+<div id="live" class="live-panel" data-poll="/live/panel" data-interval="{{ refresh_ms }}" aria-live="polite">
+{% include "_live_panel.html" %}
+</div>
+{% endblock %}

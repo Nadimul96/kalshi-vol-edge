@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, kpi, callout, empty %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Backtest</h1>
+    <p class="sub">{{ report.series }} · {{ report.markets }} settled markets · {{ span }} · {{ report.decision_minutes|num }} decision minutes</p>
+  </div>
+  {% if series_options|length > 1 %}
+  <div class="segmented" role="tablist" aria-label="Market series">
+    {% for s in series_options %}
+    <a role="tab" class="seg{% if s == report.series %} is-active{% endif %}" href="{{ links.backtest(s) }}"{% if s == report.series %} aria-selected="true"{% endif %}>{{ "15-minute" if s == "KXBTC15M" else "Hourly" }} <span class="mono muted">{{ s }}</span></a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{% call callout("warn", "Quotes are modeled.") %}
+  Order books were not recorded for these markets, so entry prices come from a declared model: {{ report.quote_source|replace("MODELED (no recorded order books): ", "") }}.
+  Win rate and settlement basis do not depend on that model; P&amp;L does. A sample this small is not evidence of an edge.
+{% endcall %}
+
+<section class="kpis kpis-6">
+  {{ kpi("Net P&L", report.net_pnl|usd(2, true), report.net_pnl|tone, "after taker fees, under the quote model", hero=true) }}
+  {{ kpi("Trades", report.trade_count|num, hint=report.wins ~ " won") }}
+  {{ kpi("Win rate", report.win_rate|pct) }}
+  {{ kpi("Fees · taker", report.fees|usd) }}
+  {{ kpi("Max drawdown", report.max_drawdown|usd, hint="peak to trough, settlement order") }}
+  {{ kpi("Capital deployed", report.capital_deployed|usd) }}
+</section>
+
+<section class="grid grid-main">
+  <article class="card">
+    <header class="card-head"><div><h3>Equity curve</h3><p class="sub">Cumulative net P&amp;L after each trade, held to settlement</p></div></header>
+    {% if equity %}{{ equity }}{% else %}
+    {% call empty("No trades", "info") %}No arm fired on any decision minute of this fixture.{% endcall %}
+    {% endif %}
+  </article>
+  <article class="card">
+    <header class="card-head"><h3>By arm</h3></header>
+    <ul class="arm-list">
+      {% for a in arms %}
+      <li class="arm-item{% if not a.trades %} is-idle{% endif %}">
+        <div class="arm-top">
+          <span><span class="arm arm-{{ a.arm }}"></span><strong>{{ a.arm }}</strong></span>
+          <span class="num {{ a.net_pnl|tone }}">{{ a.net_pnl|usd(2, true) if a.trades else "no trades" }}</span>
+        </div>
+        <div class="arm-blurb">{{ a.blurb }}</div>
+        {% if a.trades %}
+        <div class="arm-stats num">
+          <span>{{ a.trades }} trades</span><span>{{ a.win_rate|pct }} win</span><span>avg {{ a.avg_price|cents }}</span><span>fees {{ a.fees|usd }}</span>
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </article>
+</section>
+
+<section class="card">
+  <header class="card-head"><div><h3>Trades</h3><p class="sub">Every simulated entry. Times are UTC; P(win) and edge are the model's at entry.</p></div><span class="chip num">{{ trades|length }}</span></header>
+  {% if trades %}
+  <div class="table-wrap table-scroll">
+  <table class="table">
+    <thead><tr>
+      <th>Entry</th><th>Ticker</th><th>Arm</th><th>Side</th><th class="r">Min left</th><th class="r">Spot</th><th class="r">Strike</th><th class="r">Price</th><th class="r">Qty</th><th class="r">P(win)</th><th class="r">Edge</th><th>Result</th><th class="r">Net P&amp;L</th>
+    </tr></thead>
+    <tbody>
+    {% for t in trades %}
+      <tr>
+        <td class="num">{{ t.entry_ts|utc_time(true) }}</td>
+        <td class="mono">{{ t.ticker }}</td>
+        <td><span class="arm arm-{{ t.arm }}"></span>{{ t.arm }}</td>
+        <td>{{ t.side|upper }}</td>
+        <td class="r num">{{ "%.1f"|format(t.minutes_left) }}</td>
+        <td class="r num">{{ t.spot|num(2) }}</td>
+        <td class="r num">{{ t.strike|num(2) }}</td>
+        <td class="r num">{{ t.price|cents }}</td>
+        <td class="r num">{{ t.contracts }}</td>
+        <td class="r num">{{ t.win_prob|pct }}</td>
+        <td class="r num">{{ t.edge|cents(true, 1) }}</td>
+        <td><span class="result result-{{ 'won' if t.won else 'lost' }}">{{ "Won" if t.won else "Lost" }}</span></td>
+        <td class="r num {{ t.pnl|tone }}">{{ t.pnl|usd(2, true) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  {% call empty("No trades", "info") %}No arm fired on any decision minute of this fixture.{% endcall %}
+  {% endif %}
+</section>
+<p class="fineprint">Replay is deterministic and has no look-ahead: spot at minute t is the close of the candle that ended at t, and realized vol uses the sixty closes before it. Source: <span class="mono">{{ report.fixture }}</span>. {{ fixture_description }}</p>
+{% endblock %}

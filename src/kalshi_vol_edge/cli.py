@@ -3,6 +3,7 @@
     kve backtest  --fixtures data/sample [--series KXBTC15M] [--json]
     kve reconcile --dry-run [--fixtures data/sample] [--db data/kve.sqlite3]
     kve fees      --price 0.62 --contracts 10
+    kve dashboard [--host 127.0.0.1] [--port 8000]
 
 Exit codes: 0 success, 1 unexpected error, 2 bad input (missing fixture, bad arguments).
 """
@@ -154,6 +155,17 @@ def cmd_fees(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    """Serve the web dashboard (live markets, backtest, basis, reconciliation, account)."""
+    import uvicorn
+
+    from kalshi_vol_edge.web.app import create_app
+
+    print(f"kve dashboard on http://{args.host}:{args.port}  (Ctrl+C to stop)")
+    uvicorn.run(create_app(), host=args.host, port=args.port, log_level="warning")
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Argument parser for ``kve``."""
     parser = argparse.ArgumentParser(
@@ -194,6 +206,11 @@ def build_parser() -> argparse.ArgumentParser:
     f.add_argument("--price", type=float, required=True)
     f.add_argument("--contracts", type=int, default=1)
     f.set_defaults(func=cmd_fees)
+
+    d = sub.add_parser("dashboard", help="serve the web dashboard")
+    d.add_argument("--host", default="127.0.0.1", help="bind address (default: localhost only)")
+    d.add_argument("--port", type=int, default=8000)
+    d.set_defaults(func=cmd_dashboard)
     return parser
 
 

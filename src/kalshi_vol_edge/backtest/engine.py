@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from statistics import median
 from typing import Any, Protocol
 
 from kalshi_vol_edge.data.markets import THRESHOLD_TYPES, BracketMarket, load_markets
@@ -342,7 +343,7 @@ class BacktestReport:
         return {
             "markets": len(vals),
             "mean_abs_basis": sum(abs_vals) / len(abs_vals),
-            "median_abs_basis": abs_vals[len(abs_vals) // 2],
+            "median_abs_basis": median(abs_vals),
             "max_abs_basis": abs_vals[-1],
             "direction_flips": flips,
         }

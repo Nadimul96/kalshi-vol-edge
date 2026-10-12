@@ -11,7 +11,6 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from statistics import median
 from typing import Any
 
 from markupsafe import Markup
@@ -179,7 +178,6 @@ def basis_context(fixture: Fixture, report: BacktestReport) -> dict[str, Any]:
         "rows": rows,
         "summary": summary,
         "signed_mean": sum(values) / len(values) if values else None,
-        "median_abs": median(abs_values) if abs_values else None,
         "within_10": sum(v <= 10 for v in abs_values),
         "histogram": histogram(
             bin_values(values, 10.0),

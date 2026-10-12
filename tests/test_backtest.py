@@ -33,6 +33,7 @@ def test_sample_fixture_replay_is_deterministic(sample_dir: Path):
     basis = a.basis_summary()
     assert basis["markets"] == 30 and basis["direction_flips"] == 2
     assert 10 < basis["mean_abs_basis"] < 25
+    assert round(basis["median_abs_basis"], 2) == 12.96  # true median of 30 values
     text = format_report(a)
     assert "MODELED" in text and "trades           : 13" in text
     assert "direction flips" in text

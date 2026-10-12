@@ -12,7 +12,7 @@
   {{ kpi("Direction flips", summary.direction_flips|num, "neg" if summary.direction_flips else "", "Coinbase on the wrong side of the strike at expiry", hero=true) }}
   {{ kpi("Markets", summary.markets|num) }}
   {{ kpi("Mean |basis|", summary.mean_abs_basis|usd) }}
-  {{ kpi("Median |basis|", median_abs|usd) }}
+  {{ kpi("Median |basis|", summary.median_abs_basis|usd) }}
   {{ kpi("Max |basis|", summary.max_abs_basis|usd) }}
   {{ kpi("Signed mean", signed_mean|usd(2, true), hint="positive: Coinbase above BRTI") }}
 </section>

@@ -157,8 +157,8 @@ CI runs all of the above on Python 3.11, 3.12 and 3.13, plus the backtest and re
 | Command | Result (macOS, Python 3.12.8; tests and mypy also pass on 3.11.6 and 3.13.1) |
 | --- | --- |
 | `uv run ruff check .` / `ruff format --check .` | All checks passed / already formatted |
-| `uv run mypy` | Success: no issues found in 33 source files |
-| `uv run pytest -q` | 143 passed |
+| `uv run mypy` | Success: no issues found in 35 source files |
+| `uv run pytest -q` | 194 passed |
 | `uv run kve backtest --fixtures data/sample` | report above, exit 0 |
 | `uv run kve backtest --fixtures /nonexistent` | `fixture directory not found`, exit 2 |
 

@@ -51,6 +51,11 @@ def test_to_decimal_never_uses_float_and_rejects_garbage():
 
 def test_strategy_parsed_from_client_order_id():
     assert (
+        parse_strategy_from_client_order_id("vol_edge_15m_late_BTC_KXBTC15M-26MAR222030")
+        == "vol_edge_15m"
+    )
+    # ids written by the earlier timestamp scheme still parse
+    assert (
         parse_strategy_from_client_order_id("vol_edge_15m_late_BTC_1711234567000") == "vol_edge_15m"
     )
     assert (
@@ -58,6 +63,7 @@ def test_strategy_parsed_from_client_order_id():
         == "base_rate_v1"
     )
     assert parse_strategy_from_client_order_id("abc123") is None
+    assert parse_strategy_from_client_order_id("3f2b9c1e-uuid-like") is None
     assert parse_strategy_from_client_order_id(None) is None
 
 

@@ -37,6 +37,7 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
 
+from kalshi_vol_edge.kalshi.order_ids import parse_client_order_id
 from kalshi_vol_edge.logging import get_logger
 
 if TYPE_CHECKING:
@@ -80,24 +81,14 @@ def parse_timestamp(value: Any) -> datetime | None:
 
 
 def parse_strategy_from_client_order_id(client_order_id: str | None) -> str | None:
-    """Extract the strategy name from ``{strategy}_{arm}_{asset}_{timestamp_ms}``.
+    """Strategy attribution from a fill's ``client_order_id``.
 
-    ``vol_edge_15m_late_BTC_1711234567000`` -> ``vol_edge_15m``.
+    ``vol_edge_15m_late_BTC_KXBTC15M-26MAR222030`` -> ``vol_edge_15m``. The format is defined
+    once, in :mod:`kalshi_vol_edge.kalshi.order_ids`, which the executor uses to build it.
     Returns None when the id does not follow the convention.
     """
-    if not client_order_id or "_" not in client_order_id:
-        return None
-    parts = client_order_id.split("_")
-    if len(parts) < 4:
-        return None
-    ts_idx = next(
-        (i for i in range(len(parts) - 1, -1, -1) if parts[i].isdigit() and len(parts[i]) >= 10),
-        None,
-    )
-    if ts_idx is None or ts_idx < 3:
-        return None
-    strategy_parts = parts[: ts_idx - 2]  # strip asset and arm
-    return "_".join(strategy_parts) or None
+    key = parse_client_order_id(client_order_id)
+    return key.strategy if key else None
 
 
 @dataclass(frozen=True)

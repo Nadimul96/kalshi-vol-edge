@@ -1,13 +1,16 @@
 """Turn a strategy decision into an exchange order, idempotently.
 
-The idempotency key is deterministic: ``{strategy}_{arm}_{asset}_{event_ticker}``. The same
-decision on the same event always produces the same ``client_order_id``, so
+The idempotency key is the deterministic ``client_order_id`` from
+:func:`~kalshi_vol_edge.kalshi.order_ids.build_client_order_id`:
+``{strategy}_{arm}_{asset}_{event_ticker}``. The same decision on the same event always produces
+the same key, so
 
 * the local store rejects a second submission before it reaches the network, and
 * if the process dies after the exchange accepted the order but before the local write, the
   retry is rejected by the exchange (duplicate ``client_order_id``) instead of double-filling.
 
-The key also encodes the strategy attribution that the truth layer parses back out of fills.
+The key also encodes the strategy attribution that the truth layer parses back out of fills with
+:func:`~kalshi_vol_edge.kalshi.order_ids.parse_client_order_id`.
 """
 
 from __future__ import annotations
@@ -18,16 +21,12 @@ from typing import Any
 import httpx
 
 from kalshi_vol_edge.kalshi.client import KalshiClient
+from kalshi_vol_edge.kalshi.order_ids import build_client_order_id
 from kalshi_vol_edge.logging import get_logger
 from kalshi_vol_edge.storage.sqlite import TradeStore
 from kalshi_vol_edge.strategy.vol_edge import Decision
 
 logger = get_logger(__name__)
-
-
-def idempotency_key(strategy: str, arm: str, asset: str, event_ticker: str) -> str:
-    """Deterministic client_order_id for one arm on one event."""
-    return f"{strategy}_{arm}_{asset}_{event_ticker}"
 
 
 @dataclass(frozen=True)
@@ -59,7 +58,7 @@ class Executor:
         self, decision: Decision, ticker: str, event_ticker: str, asset: str
     ) -> SubmitResult:
         """Place the order unless the same arm already traded this event."""
-        key = idempotency_key(self.strategy, decision.arm, asset, event_ticker)
+        key = build_client_order_id(self.strategy, decision.arm, asset, event_ticker)
         if self.store.has_order(key):
             logger.info("executor_duplicate", client_order_id=key)
             return SubmitResult(key, "duplicate", detail="already submitted for this event/arm")

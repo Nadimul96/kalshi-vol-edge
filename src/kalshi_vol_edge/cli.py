@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -125,13 +126,14 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
     from kalshi_vol_edge.storage.sqlite import TradeStore
 
     async def _run() -> int:
-        async with KalshiClient(settings) as client, TradeStore(args.db) as store:
-            truth = KalshiTruth(client)
-            synced = await truth.sync_to_store(store)
-            print(f"synced: {synced}")
-            local = store.list_fills()
-            fills = await truth.get_all_fills()
-            _print_discrepancies(reconcile_fills(local, fills), args.json)
+        async with KalshiClient(settings) as client:
+            with TradeStore(args.db) as store:
+                truth = KalshiTruth(client)
+                synced = await truth.sync_to_store(store)
+                print(f"synced: {synced}")
+                local = store.list_fills()
+                fills = await truth.get_all_fills()
+                _print_discrepancies(reconcile_fills(local, fills), args.json)
         return EXIT_OK
 
     try:
@@ -203,7 +205,8 @@ def main(argv: list[str] | None = None) -> int:
     if getattr(args, "db", None) is None and args.command == "reconcile":
         args.db = load_settings().kve_db_path
     try:
-        return args.func(args)
+        command: Callable[[argparse.Namespace], int] = args.func
+        return command(args)
     except FixtureError as exc:
         _print_err(str(exc))
         return EXIT_USAGE

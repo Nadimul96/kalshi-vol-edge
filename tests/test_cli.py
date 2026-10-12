@@ -54,3 +54,25 @@ def test_fees_command(capsys):
     assert main(["fees", "--price", "0.5", "--contracts", "10"]) == EXIT_OK
     out = capsys.readouterr().out
     assert "taker fee        : $0.1750" in out and "breakeven (taker): 51.75%" in out
+
+
+def test_reconcile_live_runs_with_sync_store(monkeypatch, tmp_path, capsys):
+    """Regression: the live path opened the sync TradeStore with ``async with``."""
+    from kalshi_vol_edge.kalshi.truth import KalshiTruth
+
+    key = tmp_path / "k.pem"
+    key.write_text("unused: KalshiTruth is stubbed")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "test-key-id")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", str(key))
+
+    async def fake_sync(self, store):
+        return {"fills_seen": 0, "fills_inserted": 0}
+
+    async def fake_fills(self):
+        return []
+
+    monkeypatch.setattr(KalshiTruth, "sync_to_store", fake_sync)
+    monkeypatch.setattr(KalshiTruth, "get_all_fills", fake_fills)
+    assert main(["reconcile", "--db", str(tmp_path / "kve.sqlite3")]) == EXIT_OK
+    assert "0 discrepancies" in capsys.readouterr().out

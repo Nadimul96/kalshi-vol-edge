@@ -1,6 +1,7 @@
 """Strategy layer: pure pricing math plus the three-arm 15-minute vol-edge strategy."""
 
 from kalshi_vol_edge.strategy.vol_edge import (
+    ArmCheck,
     ArmConfig,
     Decision,
     MarketSnapshot,
@@ -15,6 +16,7 @@ from kalshi_vol_edge.strategy.vol_edge import (
 )
 
 __all__ = [
+    "ArmCheck",
     "ArmConfig",
     "Decision",
     "MarketSnapshot",

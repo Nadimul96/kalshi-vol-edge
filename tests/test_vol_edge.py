@@ -180,3 +180,22 @@ def test_clamp_vol_uses_default_when_unknown():
     assert strat.clamp_vol(0.05) == 0.20
     assert strat.clamp_vol(5.0) == 0.80
     assert strat.clamp_vol(0.5) == 0.5
+
+
+def test_diagnose_reports_every_arm_with_a_reason():
+    strat = VolEdgeStrategy()
+    checks = {c.arm: c for c in strat.diagnose(_snap(spot=70300.0, yes_ask=0.95))}
+    assert set(checks) == {"early", "mid", "late"}
+    assert checks["late"].window_open and checks["late"].decision is not None
+    assert checks["late"].reason == "fires"
+    assert not checks["mid"].window_open and checks["mid"].reason == "outside entry window"
+    assert checks["mid"].decision is None and checks["mid"].required_lead > 0
+
+
+def test_diagnose_explains_a_lead_below_threshold_and_matches_evaluate():
+    strat = VolEdgeStrategy()
+    snap = _snap(spot=70005.0)
+    late = next(c for c in strat.diagnose(snap) if c.arm == "late")
+    assert late.decision is None and late.reason.startswith("lead $5 below required")
+    assert late.required_lead == pytest.approx(required_lead(70005.0, 0.40, 4.0, Z_90))
+    assert strat.evaluate(snap) == []

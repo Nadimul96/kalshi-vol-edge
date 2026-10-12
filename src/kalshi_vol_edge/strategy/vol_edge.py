@@ -29,7 +29,7 @@ Fees are included in the edge test using the taker schedule; see ``kalshi/fees.p
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from statistics import NormalDist
 
 import numpy as np
@@ -194,6 +194,26 @@ class Decision:
     reason: str
 
 
+@dataclass(frozen=True, slots=True)
+class ArmCheck:
+    """One arm's evaluation of a snapshot, including the reason it did or did not fire.
+
+    ``required_lead`` is the z-sigma lead for the late and mid arms and the minimum drop for
+    the early arm. ``edge`` is None until the price and lead checks have passed.
+    """
+
+    arm: str
+    window_open: bool
+    side: str
+    price: float
+    z_score: float
+    required_lead: float
+    win_prob: float
+    edge: float | None = None
+    decision: Decision | None = None
+    reason: str = ""
+
+
 @dataclass(frozen=True)
 class ArmConfig:
     """Entry window and sizing for one arm."""
@@ -293,42 +313,55 @@ class VolEdgeStrategy:
         self, snap: MarketSnapshot, traded_arms: frozenset[str] = frozenset()
     ) -> list[Decision]:
         """Return the decisions for every arm that fires on this snapshot."""
-        out: list[Decision] = []
-        for arm in self.config.arms:
-            if arm.name in traded_arms or not arm.in_window(
-                snap.minutes_left, snap.minutes_elapsed
-            ):
-                continue
-            decision = self._evaluate_arm(arm, snap)
-            if decision is not None:
-                out.append(decision)
-        return out
+        return [
+            check.decision
+            for check in self.diagnose(snap)
+            if check.decision is not None and check.arm not in traded_arms
+        ]
 
-    def _evaluate_arm(self, arm: ArmConfig, snap: MarketSnapshot) -> Decision | None:
+    def diagnose(self, snap: MarketSnapshot) -> list[ArmCheck]:
+        """Every arm's view of this snapshot: what it requires, and why it fires or not.
+
+        This is the same code path :meth:`evaluate` uses, so the dashboard and the backtest
+        can never disagree about whether an arm would have traded.
+        """
+        return [self._check_arm(arm, snap) for arm in self.config.arms]
+
+    def _check_arm(self, arm: ArmConfig, snap: MarketSnapshot) -> ArmCheck:
         if arm.name == "early":
-            return self._early(arm, snap)
-        z = self.config.z_late if arm.name == "late" else mid_entry_z_score(snap.minutes_elapsed)
-        return self._directional(arm, snap, z)
+            check = self._early(arm, snap)
+        else:
+            z = (
+                self.config.z_late
+                if arm.name == "late"
+                else mid_entry_z_score(snap.minutes_elapsed)
+            )
+            check = self._directional(arm, snap, z)
+        if not arm.in_window(snap.minutes_left, snap.minutes_elapsed):
+            return replace(check, window_open=False, decision=None, reason="outside entry window")
+        return check
 
-    def _directional(self, arm: ArmConfig, snap: MarketSnapshot, z: float) -> Decision | None:
+    def _directional(self, arm: ArmConfig, snap: MarketSnapshot, z: float) -> ArmCheck:
         """Late and mid arms: trade the side currently winning if the lead clears z sigma."""
         lead = snap.lead
-        if lead == 0:
-            return None
         need = required_lead(snap.spot, snap.annual_vol, snap.minutes_left, z)
-        if abs(lead) < need:
-            return None
-        side = "yes" if lead > 0 else "no"
+        side = "yes" if lead >= 0 else "no"
         price = snap.yes_ask if side == "yes" else snap.no_ask
-        if not 0.0 < price < 1.0 or price < arm.min_price or price > arm.max_price:
-            return None
         p_win = win_probability(abs(lead), snap.spot, snap.annual_vol, snap.minutes_left)
+        check = ArmCheck(arm.name, True, side, price, z, need, p_win)
+        if lead == 0:
+            return replace(check, reason="no lead")
+        if abs(lead) < need:
+            return replace(check, reason=f"lead ${abs(lead):,.0f} below required ${need:,.0f}")
+        if not _price_in_band(arm, price):
+            return replace(check, reason=_band_reason(arm, price))
         contracts = size_contracts(arm.max_position_usd, arm.max_contracts, price)
         fee = entry_fee(contracts, price, arm.is_taker)
         edge = p_win - price - fee / contracts
+        check = replace(check, edge=edge)
         if edge < arm.min_edge:
-            return None
-        return Decision(
+            return replace(check, reason=f"edge {edge * 100:+.1f}c below {arm.min_edge * 100:.0f}c")
+        decision = Decision(
             arm=arm.name,
             side=side,
             price=price,
@@ -340,20 +373,23 @@ class VolEdgeStrategy:
             fee=fee,
             reason=f"lead={lead:+.0f} need={need:.0f} P={p_win:.3f} vol={snap.annual_vol:.2f}",
         )
+        return replace(check, decision=decision, reason="fires")
 
-    def _early(self, arm: ArmConfig, snap: MarketSnapshot) -> Decision | None:
+    def _early(self, arm: ArmConfig, snap: MarketSnapshot) -> ArmCheck:
         """Early arm: fade an initial drop by buying YES (recovery to the strike)."""
         move = snap.lead
-        if move > -self.config.early_min_move_usd:
-            return None
+        need = self.config.early_min_move_usd
         price = snap.yes_ask
-        if not 0.0 < price < 1.0 or price < arm.min_price or price > arm.max_price:
-            return None
         p_win = win_probability(move, snap.spot, snap.annual_vol, snap.minutes_left)
+        check = ArmCheck(arm.name, True, "yes", price, 0.0, need, p_win)
+        if move > -need:
+            return replace(check, reason=f"no drop of ${need:,.0f} to fade")
+        if not _price_in_band(arm, price):
+            return replace(check, reason=_band_reason(arm, price))
         contracts = size_contracts(arm.max_position_usd, arm.max_contracts, price)
         fee = entry_fee(contracts, price, arm.is_taker)
         edge = p_win - price - fee / contracts
-        return Decision(
+        decision = Decision(
             arm=arm.name,
             side="yes",
             price=price,
@@ -361,7 +397,16 @@ class VolEdgeStrategy:
             win_prob=p_win,
             edge=edge,
             z_score=0.0,
-            required_lead=self.config.early_min_move_usd,
+            required_lead=need,
             fee=fee,
             reason=f"move={move:+.0f} rsi={snap.rsi if snap.rsi is not None else float('nan'):.0f}",
         )
+        return replace(check, edge=edge, decision=decision, reason="fires")
+
+
+def _price_in_band(arm: ArmConfig, price: float) -> bool:
+    return 0.0 < price < 1.0 and arm.min_price <= price <= arm.max_price
+
+
+def _band_reason(arm: ArmConfig, price: float) -> str:
+    return f"price {price:.2f} outside {arm.min_price:.2f}-{arm.max_price:.2f}"

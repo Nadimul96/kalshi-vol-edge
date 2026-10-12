@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
@@ -27,7 +28,7 @@ class SimulationResult:
     p75_price: float = 0.0
     p95_price: float = 0.0
     bracket_probs: dict[float, float] = field(default_factory=dict)
-    best_directional: dict | None = None
+    best_directional: dict[str, Any] | None = None
     num_paths: int = 0
     spot_at_sim: float = 0.0
     vol_used: float = 0.0
@@ -91,10 +92,10 @@ def compute_bracket_probabilities(
 
 def find_mispriced_brackets(
     sim_probs: dict[float, float],
-    market_prices: dict[float, dict],
+    market_prices: dict[float, dict[str, Any]],
     fee_per_contract: float = 0.005,
     min_edge: float = 0.05,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Strikes where simulated probability beats the ask by more than fees plus ``min_edge``."""
     out = []
     for strike, p_above in sim_probs.items():
@@ -127,7 +128,7 @@ def run_full_simulation(
     strikes: list[float],
     minutes_remaining: float,
     annual_vol: float,
-    market_prices: dict[float, dict] | None = None,
+    market_prices: dict[float, dict[str, Any]] | None = None,
     drift_per_min: float = 0.0,
     num_paths: int = 10000,
     seed: int | None = None,

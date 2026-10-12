@@ -99,6 +99,10 @@ class TradeStore:
         """True after :meth:`close`."""
         return self._conn is None
 
+    def _count(self, table: str) -> int:
+        row = self._conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+        return int(row[0])
+
     def commit(self) -> None:
         """Commit pending writes."""
         self._conn.commit()
@@ -183,7 +187,7 @@ class TradeStore:
 
     def count_orders(self) -> int:
         """Number of order rows."""
-        return self._conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
+        return self._count("orders")
 
     # ── Fills ────────────────────────────────────────────────────────────────────
 
@@ -233,7 +237,7 @@ class TradeStore:
 
     def count_fills(self) -> int:
         """Number of fill rows."""
-        return self._conn.execute("SELECT COUNT(*) FROM fills").fetchone()[0]
+        return self._count("fills")
 
     # ── Settlements ──────────────────────────────────────────────────────────────
 
@@ -273,4 +277,4 @@ class TradeStore:
 
     def count_settlements(self) -> int:
         """Number of settlement rows."""
-        return self._conn.execute("SELECT COUNT(*) FROM settlements").fetchone()[0]
+        return self._count("settlements")

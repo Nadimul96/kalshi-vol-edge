@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from statistics import NormalDist
+from typing import Any
 
 MINUTES_PER_YEAR = 365.25 * 24 * 60
 _NORM = NormalDist()
@@ -101,7 +102,7 @@ def compute_bracket_chain(
     strikes: list[float],
     minutes_left: float,
     annual_vol: float,
-    market_prices: dict[float, dict] | None = None,
+    market_prices: dict[float, dict[str, Any]] | None = None,
 ) -> list[BinaryGreeks]:
     """Greeks for every strike of one event, ascending by strike."""
     market_prices = market_prices or {}
@@ -125,7 +126,7 @@ def compute_bracket_chain(
 
 def theta_decay_schedule(
     spot: float, strike: float, annual_vol: float, total_minutes: int = 60
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Minute-by-minute fair value and Greeks from ``total_minutes`` down to 1."""
     return [
         {

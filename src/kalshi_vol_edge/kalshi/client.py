@@ -82,6 +82,12 @@ def auth_headers(
     }
 
 
+def _unwrap(resp: dict[str, Any], key: str) -> dict[str, Any]:
+    """Return ``resp[key]`` when the API wraps the object under ``key``, else ``resp``."""
+    inner = resp.get(key)
+    return inner if isinstance(inner, dict) else resp
+
+
 class KalshiClient:
     """Async REST client. Use as an async context manager so the connection pool is closed."""
 
@@ -151,7 +157,10 @@ class KalshiClient:
         )
         logger.debug("kalshi_request", method=method.upper(), path=path, status=resp.status_code)
         resp.raise_for_status()
-        return resp.json()
+        body = resp.json()
+        if not isinstance(body, dict):
+            raise ValueError(f"{method.upper()} {path}: expected a JSON object, got {type(body)}")
+        return body
 
     async def paginate(
         self,
@@ -196,7 +205,7 @@ class KalshiClient:
     async def get_market(self, ticker: str) -> dict[str, Any]:
         """Fetch one market; for settled markets ``result`` is ``yes``/``no``."""
         resp = await self.request("GET", f"/markets/{ticker}")
-        return resp.get("market", resp)
+        return _unwrap(resp, "market")
 
     async def get_event(
         self, event_ticker: str, with_nested_markets: bool = True
@@ -207,7 +216,7 @@ class KalshiClient:
             f"/events/{event_ticker}",
             params={"with_nested_markets": str(with_nested_markets).lower()},
         )
-        return resp.get("event", resp)
+        return _unwrap(resp, "event")
 
     async def get_orderbook(self, ticker: str) -> dict[str, Any]:
         """Fetch the order book for a market."""
@@ -236,7 +245,7 @@ class KalshiClient:
     async def get_order(self, order_id: str) -> dict[str, Any]:
         """Fetch one order by exchange id."""
         resp = await self.request("GET", f"/portfolio/orders/{order_id}")
-        return resp.get("order", resp)
+        return _unwrap(resp, "order")
 
     # ── Orders (authenticated) ───────────────────────────────────────────────────
 
@@ -272,7 +281,7 @@ class KalshiClient:
         if post_only:
             body["post_only"] = True
         resp = await self.request("POST", "/portfolio/orders", json_body=body)
-        order = resp.get("order", resp)
+        order = _unwrap(resp, "order")
         logger.info(
             "kalshi_order_placed",
             ticker=ticker,

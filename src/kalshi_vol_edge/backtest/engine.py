@@ -54,7 +54,10 @@ class FixtureError(RuntimeError):
 class QuoteSource(Protocol):
     """Yields (yes_ask, no_ask) for a market at a decision minute."""
 
-    description: str
+    @property
+    def description(self) -> str:
+        """Human-readable label for reports."""
+        ...
 
     def quote(
         self, ticker: str, at_ts: int, spot: float, strike: float, minutes_left: float

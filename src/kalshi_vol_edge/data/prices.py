@@ -27,7 +27,7 @@ import json
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 import httpx
 
@@ -46,7 +46,7 @@ class Candle:
     volume: float
 
     @classmethod
-    def from_coinbase_row(cls, row: list) -> Candle:
+    def from_coinbase_row(cls, row: list[Any]) -> Candle:
         """Coinbase Exchange returns ``[time, low, high, open, close, volume]``."""
         return cls(
             int(row[0]), float(row[1]), float(row[2]), float(row[3]), float(row[4]), float(row[5])

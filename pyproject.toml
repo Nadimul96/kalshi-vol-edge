@@ -58,3 +58,10 @@ ignore = ["RUF012"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-ra"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/kalshi_vol_edge"]
+plugins = ["pydantic.mypy"]
+warn_unreachable = true

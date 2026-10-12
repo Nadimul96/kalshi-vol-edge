@@ -10,7 +10,7 @@ import structlog
 
 def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     """Configure structlog once. Secrets are never passed to the logger by this package."""
-    processors: list = [
+    processors: list[structlog.typing.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
@@ -30,6 +30,7 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     )
 
 
-def get_logger(name: str) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str) -> structlog.typing.FilteringBoundLogger:
     """Return a bound logger."""
-    return structlog.get_logger(name)
+    logger: structlog.typing.FilteringBoundLogger = structlog.get_logger(name)
+    return logger

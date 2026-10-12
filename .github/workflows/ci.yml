@@ -33,3 +33,5 @@ jobs:
           if uv run kve backtest --fixtures /nonexistent; then
             echo "expected a non-zero exit"; exit 1
           fi
+      - name: Build the static report
+        run: uv run kve report --fixtures data/sample --out site

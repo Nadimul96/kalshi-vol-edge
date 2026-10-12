@@ -26,6 +26,9 @@ dependencies = [
     "pydantic>=2.14.1,<3",
     "pydantic-settings>=2.15.0,<3",
     "structlog>=26.1.0",
+    "fastapi>=0.143.0",
+    "uvicorn>=0.54.0",
+    "jinja2>=3.1.6",
 ]
 
 [project.scripts]
@@ -37,6 +40,7 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff>=0.17.0",
     "mypy>=2.4.0",
+    "httpx2>=2.13.1",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -65,3 +69,6 @@ strict = true
 files = ["src/kalshi_vol_edge"]
 plugins = ["pydantic.mypy"]
 warn_unreachable = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["kalshi_vol_edge", "web_fakes"]

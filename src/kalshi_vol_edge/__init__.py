@@ -8,6 +8,7 @@ Modules:
     backtest    deterministic replay of the strategy over recorded fixtures
     storage     SQLite schema with idempotent writes
     execution   decision -> order with deterministic idempotency keys
+    web         dashboard (FastAPI + Jinja) and the static report built from the same templates
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

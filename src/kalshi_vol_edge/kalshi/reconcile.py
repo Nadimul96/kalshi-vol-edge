@@ -152,6 +152,10 @@ class _ExchangeOrder:
         )
 
 
+def _n_fills(order: _ExchangeOrder) -> str:
+    return f"{order.fills} fill" + ("" if order.fills == 1 else "s")
+
+
 def _group_fills(api_fills: list[dict[str, Any]]) -> list[_ExchangeOrder]:
     groups: dict[str, list[dict[str, Any]]] = {}
     for fill in api_fills:
@@ -219,7 +223,7 @@ def _check_count(rec: dict[str, Any], order: _ExchangeOrder) -> _Finding | None:
     local, ordered, filled = _count(rec), to_decimal(_count(rec)), order.count
     status = rec.get("status")
     if (status is None or status in FILLED_STATUSES) and abs(filled - ordered) > COUNT_TOLERANCE:
-        context = f"Contract count mismatch: local={local} exchange={filled} ({order.fills} fills)"
+        context = f"Contract count mismatch: local={local} exchange={filled} ({_n_fills(order)})"
         return _Finding("count", local, str(filled), "critical", context)
     if filled > ordered + COUNT_TOLERANCE:
         context = f"Overfilled: the exchange filled {filled} on an order for {local}"
@@ -334,7 +338,7 @@ def reconcile_orders(
     matched = {o.key for o in matches.values()}
     for o in orders:
         if o.key not in matched:
-            what = f"order {o.order_id} ({o.fills} fills, " if o.order_id else "fill ("
+            what = f"order {o.order_id} ({_n_fills(o)}, " if o.order_id else "fill ("
             context = f"Exchange {what}{o.count} {o.side} @ {o.first_time}) is not in local state."
             api_value = o.order_id or o.first_fill_id
             out.append(

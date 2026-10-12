@@ -1,0 +1,24 @@
+{
+  "cursor": "",
+  "markets": [
+    {
+      "close_time": "2026-10-12T04:00:00Z",
+      "event_ticker": "KXBTC15M-26OCT120000",
+      "expiration_value": "",
+      "floor_strike": 83499.07,
+      "last_price_dollars": "0.7500",
+      "market_type": "binary",
+      "no_ask_dollars": "0.2600",
+      "no_bid_dollars": "0.2500",
+      "open_time": "2026-10-12T03:45:00Z",
+      "result": "",
+      "status": "active",
+      "strike_type": "greater_or_equal",
+      "ticker": "KXBTC15M-26OCT120000-00",
+      "title": "BTC price up in next 15 mins?",
+      "volume_fp": "1912638.80",
+      "yes_ask_dollars": "0.7500",
+      "yes_bid_dollars": "0.7400"
+    }
+  ]
+}

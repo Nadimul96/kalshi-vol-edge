@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     kalshi_prod_url: str = "https://api.elections.kalshi.com/trade-api/v2"
     kalshi_request_timeout_s: float = Field(default=30.0, gt=0)
 
+    # Public market data (open markets, quotes) needs no key and is always read from the
+    # production exchange, where the real BTC 15-minute markets trade. Account reads and
+    # orders use ``kalshi_environment`` above, which defaults to the demo exchange.
+    kalshi_market_data_url: str = "https://api.elections.kalshi.com/trade-api/v2"
+    kalshi_series: str = "KXBTC15M"
+
+    # Order guard rails for `kve order`. Both are checked before anything is sent.
+    kve_max_position_contracts: int = Field(default=10, ge=1)
+    kve_max_order_usd: float = Field(default=10.0, gt=0)
+
     # Price feed used for spot. Kalshi settles BTC on CF Benchmarks BRTI, whose constituents
     # include Coinbase; see data/prices.py for why this matters.
     coinbase_base_url: str = "https://api.exchange.coinbase.com"
@@ -58,6 +68,10 @@ class Settings(BaseSettings):
         if self.kalshi_environment == Environment.DEMO:
             return self.kalshi_demo_url
         return self.kalshi_prod_url
+
+    def for_environment(self, environment: Environment) -> Settings:
+        """A copy of these settings pointed at ``environment``."""
+        return self.model_copy(update={"kalshi_environment": environment})
 
     @property
     def has_credentials(self) -> bool:

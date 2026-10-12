@@ -232,11 +232,14 @@ class KalshiClient:
         """All fills, fully paginated."""
         return await self.paginate("/portfolio/fills", "fills", params)
 
-    async def get_positions(self, settlement_status: str = "unsettled") -> list[dict[str, Any]]:
+    async def get_positions(
+        self, settlement_status: str = "unsettled", ticker: str | None = None
+    ) -> list[dict[str, Any]]:
         """All positions for one settlement bucket (``settled`` or ``unsettled``)."""
-        return await self.paginate(
-            "/portfolio/positions", "market_positions", {"settlement_status": settlement_status}
-        )
+        params: dict[str, Any] = {"settlement_status": settlement_status}
+        if ticker:
+            params["ticker"] = ticker
+        return await self.paginate("/portfolio/positions", "market_positions", params)
 
     async def get_settlements(self) -> list[dict[str, Any]]:
         """All settlement records, fully paginated."""

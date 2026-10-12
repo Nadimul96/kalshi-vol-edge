@@ -5,6 +5,8 @@
     kve fees      --price 0.62 --contracts 10
     kve dashboard [--host 127.0.0.1] [--port 8000]
     kve report    --fixtures data/sample --out site
+    kve doctor    [--offline]
+    kve order     --ticker T --side yes --price 0.55 --contracts 2 [--live]
 
 Exit codes: 0 success, 1 unexpected error, 2 bad input (missing fixture, bad arguments).
 """
@@ -181,6 +183,83 @@ def cmd_report(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Check the environment and say what is missing."""
+    from kalshi_vol_edge.doctor import run_doctor
+
+    checks = run_doctor(load_settings(), offline=args.offline)
+    width = max(len(c.name) for c in checks)
+    for c in checks:
+        print(f"  {c.status:<8} {c.name:<{width}}  {c.detail}")
+    failed = [c for c in checks if c.status == "fail"]
+    print(f"\n{len(failed)} problem(s)" if failed else "\nready")
+    return EXIT_USAGE if failed else EXIT_OK
+
+
+def cmd_order(args: argparse.Namespace) -> int:
+    """Place one guarded limit order: demo by default, --live plus typed confirmation for prod."""
+    import httpx
+
+    from kalshi_vol_edge.config import Environment
+    from kalshi_vol_edge.kalshi.client import KalshiClient
+    from kalshi_vol_edge.trading import OrderRefusedError, place_order, validate
+
+    try:
+        order = validate(args.ticker, args.side, args.price, args.contracts, args.live)
+    except OrderRefusedError as exc:
+        _print_err(str(exc))
+        return EXIT_USAGE
+    if args.live and args.yes:
+        _print_err(
+            "--yes cannot be used with --live; a live order is confirmed by typing its ticker"
+        )
+        return EXIT_USAGE
+    if args.live and not sys.stdin.isatty():
+        _print_err("a live order must be confirmed at an interactive terminal")
+        return EXIT_USAGE
+    settings = load_settings().for_environment(order.environment)
+    if not settings.has_credentials:
+        _print_err(
+            f"placing an order needs KALSHI_API_KEY_ID and KALSHI_PRIVATE_KEY_PATH for the "
+            f"{order.environment.value} exchange. Kalshi's demo exchange is free for paper "
+            "trading: create an account there, generate an API key, and see .env.example"
+        )
+        return EXIT_USAGE
+
+    def confirm(text: str) -> bool:
+        print(text)
+        if order.environment == Environment.PROD:
+            typed = input(f"Type {order.ticker} to place this LIVE order: ")
+            return typed.strip() == order.ticker
+        if args.yes:
+            return True
+        return input("Place this order on the demo exchange? [y/N] ").strip().lower() in (
+            "y",
+            "yes",
+        )
+
+    async def _run() -> dict[str, Any]:
+        async with KalshiClient(settings) as client:
+            return await place_order(order, settings, client, confirm)
+
+    try:
+        result = asyncio.run(_run())
+    except OrderRefusedError as exc:
+        _print_err(f"order not sent: {exc}")
+        return EXIT_USAGE
+    except CredentialsError as exc:
+        _print_err(str(exc))
+        return EXIT_USAGE
+    except httpx.HTTPStatusError as exc:
+        _print_err(f"the exchange rejected the order: HTTP {exc.response.status_code}")
+        return EXIT_ERROR
+    print(
+        f"sent to {order.environment.value}: order {result.get('order_id')} "
+        f"status={result.get('status')}"
+    )
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Argument parser for ``kve``."""
     parser = argparse.ArgumentParser(
@@ -231,6 +310,21 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--fixtures", default="data/sample", help="fixture directory")
     rp.add_argument("--out", default="site", help="output directory")
     rp.set_defaults(func=cmd_report)
+
+    dr = sub.add_parser("doctor", help="check setup: fixtures, network, optional Kalshi key")
+    dr.add_argument("--offline", action="store_true", help="skip network checks")
+    dr.set_defaults(func=cmd_doctor)
+
+    o = sub.add_parser(
+        "order", help="place one limit order (demo exchange unless --live, always confirmed)"
+    )
+    o.add_argument("--ticker", required=True)
+    o.add_argument("--side", required=True, choices=["yes", "no"])
+    o.add_argument("--price", type=float, required=True, help="limit price in dollars")
+    o.add_argument("--contracts", type=int, default=1)
+    o.add_argument("--live", action="store_true", help="send to the production exchange")
+    o.add_argument("--yes", action="store_true", help="skip the demo confirmation prompt")
+    o.set_defaults(func=cmd_order)
     return parser
 
 

@@ -17,7 +17,7 @@
 
 {% call callout("warn", "Quotes are modeled.") %}
   Order books were not recorded for these markets, so entry prices come from a declared model: {{ report.quote_source|replace("MODELED (no recorded order books): ", "") }}.
-  Win rate and settlement basis do not depend on that model; P&amp;L does. A sample this small is not evidence of an edge.
+  Win rate and settlement basis do not depend on that model; P&amp;L does. Modeled quotes over a day and a half of markets are not evidence of an edge.
 {% endcall %}
 
 <section class="kpis kpis-6">
@@ -48,7 +48,7 @@
         <div class="arm-blurb">{{ a.blurb }}</div>
         {% if a.trades %}
         <div class="arm-stats num">
-          <span>{{ a.trades }} trades</span><span>{{ a.win_rate|pct }} win</span><span>avg {{ a.avg_price|cents }}</span><span>fees {{ a.fees|usd }}</span>
+          <span>{{ a.trades }} trade{{ "s" if a.trades != 1 }}</span><span>{{ a.win_rate|pct }} win</span><span>avg {{ a.avg_price|cents }}</span><span>fees {{ a.fees|usd }}</span>
         </div>
         {% endif %}
       </li>

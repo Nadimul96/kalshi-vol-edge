@@ -266,7 +266,7 @@ def spot_chart(view: LiveView) -> Markup | None:
         refs=refs,
         band=band,
         area=False,
-        height=220,
+        height=270,
     )
 
 

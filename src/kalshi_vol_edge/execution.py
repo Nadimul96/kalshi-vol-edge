@@ -10,7 +10,9 @@ the same key, so
   retry is rejected by the exchange (duplicate ``client_order_id``) instead of double-filling.
 
 The key also encodes the strategy attribution that the truth layer parses back out of fills with
-:func:`~kalshi_vol_edge.kalshi.order_ids.parse_client_order_id`.
+:func:`~kalshi_vol_edge.kalshi.order_ids.parse_client_order_id`. Because the key names the event,
+not the market, an arm trades at most once per event even when the event has many strikes; the
+backtest (``backtest/engine.py``) applies the same scope.
 """
 
 from __future__ import annotations

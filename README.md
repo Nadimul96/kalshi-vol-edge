@@ -70,7 +70,7 @@ To add a key: create an account on Kalshi's demo exchange, generate an API key (
   backtest/engine replays the same strategy over recorded fixtures, minute by minute.
 ```
 
-The contract pays $1 if BRTI at close is at or above the strike. Under a driftless log-normal model, the dollar standard deviation over the minutes left is `spot * sigma * sqrt(minutes / minutes_per_year)`, and an arm trades only when the current lead exceeds `z` of those. Sigma is the realized vol of the last sixty one-minute Coinbase closes, clamped to 20-80%. The market's own quote implies a vol; when realized is below implied, a lead that already exists is more likely to hold than the price says. Three arms trade different parts of the window (minutes 3-6, 7-10 left, 3-5.5 left), and every edge is computed after Kalshi's taker fee.
+The contract pays $1 if BRTI at close is at or above the strike. Under a driftless log-normal model, the dollar standard deviation over the minutes left is `spot * sigma * sqrt(minutes / minutes_per_year)`, and an arm trades only when the current lead exceeds `z` of those. Sigma is the realized vol of the last sixty one-minute Coinbase closes, clamped to 20-80%. The market's own quote implies a vol; when realized is below implied, a lead that already exists is more likely to hold than the price says. Three arms trade different parts of the window (minutes 3-6, 7-10 left, 3-5.5 left), every edge is computed after Kalshi's taker fee, and each arm trades at most once per event: the executor's `client_order_id` names the event, and the backtest applies the same scope across all of an event's strikes.
 
 ## Screenshots
 

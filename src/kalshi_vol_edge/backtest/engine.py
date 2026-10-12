@@ -11,6 +11,9 @@ Design rules
   when the trade is scored.
 * **Deterministic.** No randomness anywhere in the replay; the same fixture always gives the
   same report, which a test pins.
+* **Same idempotency as live.** Each arm trades at most once per *event*, the scope of the
+  executor's ``client_order_id``. Events with many strikes are replayed minute by minute across
+  all strikes, so the first strike to fire an arm takes it, as it would live.
 * **Quotes are declared, not assumed.** Entry prices come from a :class:`QuoteSource`. The
   sample fixture has no recorded order books, so its manifest declares a
   :class:`ModeledQuotes` source and the report prints that at the top. Win rate and
@@ -374,7 +377,7 @@ class BacktestReport:
 def run_backtest(
     fixture: Fixture, config: StrategyConfig | None = None, lookback_minutes: int = 60
 ) -> BacktestReport:
-    """Replay every market in the fixture through the strategy."""
+    """Replay every event in the fixture through the strategy."""
     strategy = VolEdgeStrategy(config)
     report = BacktestReport(
         fixture=str(fixture.root),
@@ -384,63 +387,80 @@ def run_backtest(
         markets=len(fixture.markets),
         decision_minutes=0,
     )
-
+    events: dict[str, list[BracketMarket]] = {}
     for market in fixture.markets:
         if market.strike_type not in THRESHOLD_TYPES:
             continue  # bracket ("between") markets are outside this strategy
-        won_yes = market.yes_wins()
-        assert won_yes is not None  # load_fixture rejects unsettled markets
-        strike = market.strike
-        traded: set[str] = set()
+        events.setdefault(market.event_ticker, []).append(market)
+        report.settlement_basis.append(_settlement_basis(fixture, market))
+    for markets in events.values():
+        _replay_event(fixture, strategy, markets, lookback_minutes, report)
+    return report
 
-        # Settlement basis: last completed Coinbase candle before close vs BRTI settlement.
-        cb_close = fixture.feed.spot(fixture.asset, market.close_ts)
-        basis = (
-            None
-            if cb_close is None or market.expiration_value is None
-            else (cb_close - market.expiration_value)
-        )
-        report.settlement_basis.append(
-            {
-                "ticker": market.ticker,
-                "coinbase_close": cb_close,
-                "brti_settlement": market.expiration_value,
-                "basis": basis,
-                "direction_flip": (cb_close is not None and ((cb_close >= strike) != won_yes)),
-            }
-        )
 
-        for t in range(market.open_ts + 60, market.close_ts, 60):
-            spot = fixture.feed.spot(fixture.asset, t)
-            if spot is None:
+def _settlement_basis(fixture: Fixture, market: BracketMarket) -> dict[str, Any]:
+    """Last completed Coinbase candle before close vs the BRTI settlement."""
+    won_yes = market.yes_wins()
+    cb_close = fixture.feed.spot(fixture.asset, market.close_ts)
+    basis = (
+        None
+        if cb_close is None or market.expiration_value is None
+        else (cb_close - market.expiration_value)
+    )
+    return {
+        "ticker": market.ticker,
+        "coinbase_close": cb_close,
+        "brti_settlement": market.expiration_value,
+        "basis": basis,
+        "direction_flip": (cb_close is not None and ((cb_close >= market.strike) != won_yes)),
+    }
+
+
+def _replay_event(
+    fixture: Fixture,
+    strategy: VolEdgeStrategy,
+    markets: list[BracketMarket],
+    lookback_minutes: int,
+    report: BacktestReport,
+) -> None:
+    """Walk one event minute by minute across all of its strikes.
+
+    Idempotency matches the executor's ``client_order_id``: one order per arm per *event*. On
+    a multi-strike event the first strike to fire an arm takes it; within a minute, strikes are
+    tried in fixture order.
+    """
+    traded: set[str] = set()
+    minutes = sorted({t for m in markets for t in range(m.open_ts + 60, m.close_ts, 60)})
+    for t in minutes:
+        spot = fixture.feed.spot(fixture.asset, t)
+        if spot is None:
+            continue
+        history = fixture.feed.candles(fixture.asset, t - lookback_minutes * 60, t)
+        vol = strategy.clamp_vol(realized_vol_annualized([c.close for c in history]))
+        rsi = TechnicalEngine.from_candles(history).rsi(14) if len(history) >= 15 else None
+        for market in markets:
+            if not market.open_ts + 60 <= t < market.close_ts:
                 continue
             report.decision_minutes += 1
             minutes_left = (market.close_ts - t) / 60.0
-            minutes_elapsed = (t - market.open_ts) / 60.0
-
-            history = fixture.feed.candles(fixture.asset, t - lookback_minutes * 60, t)
-            closes = [c.close for c in history]
-            vol = strategy.clamp_vol(realized_vol_annualized(closes))
-
-            q = fixture.quotes.quote(market.ticker, t, spot, strike, minutes_left)
+            q = fixture.quotes.quote(market.ticker, t, spot, market.strike, minutes_left)
             if q is None:
                 continue
-            yes_ask, no_ask = q
-            rsi = TechnicalEngine.from_candles(history).rsi(14) if len(history) >= 15 else None
-
             snap = MarketSnapshot(
                 event_ticker=market.event_ticker,
                 ticker=market.ticker,
                 asset=fixture.asset,
-                strike=strike,
+                strike=market.strike,
                 spot=spot,
                 minutes_left=minutes_left,
-                minutes_elapsed=minutes_elapsed,
+                minutes_elapsed=(t - market.open_ts) / 60.0,
                 annual_vol=vol,
-                yes_ask=yes_ask,
-                no_ask=no_ask,
+                yes_ask=q[0],
+                no_ask=q[1],
                 rsi=rsi,
             )
+            won_yes = market.yes_wins()
+            assert won_yes is not None  # load_fixture rejects unsettled markets
             for d in strategy.evaluate(snap, frozenset(traded)):
                 traded.add(d.arm)
                 won = won_yes if d.side == "yes" else not won_yes
@@ -453,7 +473,7 @@ def run_backtest(
                         entry_ts=t,
                         minutes_left=minutes_left,
                         spot=spot,
-                        strike=strike,
+                        strike=market.strike,
                         price=d.price,
                         contracts=d.contracts,
                         fee=d.fee,
@@ -464,7 +484,6 @@ def run_backtest(
                         pnl=BacktestTrade.score(d, won),
                     )
                 )
-    return report
 
 
 def format_report(report: BacktestReport) -> str:

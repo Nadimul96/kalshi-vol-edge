@@ -2,6 +2,7 @@
 
 import json
 import shutil
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from kalshi_vol_edge.backtest.engine import (
     load_fixture,
     run_backtest,
 )
+from kalshi_vol_edge.kalshi.order_ids import build_client_order_id
 from kalshi_vol_edge.strategy.vol_edge import Decision, fair_value
 
 
@@ -42,13 +44,25 @@ def test_sample_fixture_replay_is_deterministic(sample_dir: Path):
 
 def test_hourly_series_replays_all_three_arms(sample_dir: Path):
     report = run_backtest(load_fixture(sample_dir, series="KXBTCD"))
-    assert report.markets == 672
-    assert report.trade_count == 49 and report.wins == 30
+    assert report.markets == 672 and report.decision_minutes == 672 * 59
+    assert report.trade_count == 21 and report.wins == 15
     arms = report.by_arm()
     assert set(arms) == {"early", "mid", "late"}
-    assert arms["late"]["trades"] == 18 and arms["late"]["wins"] == 18
+    assert arms["late"]["trades"] == 10 and arms["late"]["wins"] == 10
     assert report.max_drawdown >= 0
     assert report.net_pnl == pytest.approx(report.gross_pnl - report.fees)
+
+
+def test_each_arm_trades_once_per_event_like_the_executor(sample_dir: Path):
+    """Regression: the backtest reset idempotency per market, so an hourly event with 36
+    strikes could trade one arm many times while the live key allows one order per event."""
+    report = run_backtest(load_fixture(sample_dir, series="KXBTCD"))
+    per_event_arm = Counter((t.event_ticker, t.arm) for t in report.trades)
+    assert per_event_arm and max(per_event_arm.values()) == 1
+    keys = {
+        build_client_order_id("vol_edge_15m", t.arm, "BTC", t.event_ticker) for t in report.trades
+    }
+    assert len(keys) == report.trade_count  # every backtest trade maps to a distinct live key
 
 
 def test_missing_fixture_directory_fails_loudly(tmp_path: Path):

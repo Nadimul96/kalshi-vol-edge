@@ -165,7 +165,7 @@ CI runs all of the above on Python 3.11, 3.12 and 3.13, plus the backtest and re
 ## Post-mortems
 
 1. [Pricing against the wrong index](docs/postmortems/01-settlement-source.md): a position priced correctly against Binance lost by $32 against BRTI.
-2. [A vol-edge signal that predicted the wrong side](docs/postmortems/02-anti-predictive-signal.md): 1 win in 35 live hourly trades.
+2. [The hourly strategy bought longshots](docs/postmortems/02-anti-predictive-signal.md): 1 of 35 contracts settled in the money against about 5 expected at the prices paid (z ≈ −1.96, borderline), and most positions were closed early by a stop rule.
 3. [Fees ate the thin edges](docs/postmortems/03-fees-and-multi-leg.md): taker fills and per-leg fees.
 
 ## Status and limitations

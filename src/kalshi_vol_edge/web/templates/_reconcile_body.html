@@ -1,8 +1,8 @@
 {% from "_macros.html" import icon, kpi, discrepancy_table, value_or_dash %}
 <section class="kpis kpis-5">
   {{ kpi("Critical", counts.critical|num, "neg" if counts.critical else "", "phantom trades, wrong fees", hero=true) }}
-  {{ kpi("Warning", counts.warning|num, hint="unparseable values") }}
-  {{ kpi("Info", counts.info|num, hint="exchange fills missing locally") }}
+  {{ kpi("Warning", counts.warning|num, hint="unparseable or unmatchable records") }}
+  {{ kpi("Info", counts.info|num, hint="unlogged or partial fills") }}
   {{ kpi("Local records", recon.local|length) }}
   {{ kpi("Exchange fills", recon.api|length) }}
 </section>

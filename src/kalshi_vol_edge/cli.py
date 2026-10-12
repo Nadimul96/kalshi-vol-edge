@@ -31,7 +31,7 @@ from kalshi_vol_edge.backtest.engine import (
 )
 from kalshi_vol_edge.config import CredentialsError, load_settings
 from kalshi_vol_edge.kalshi.fees import breakeven_win_rate, maker_fee, taker_fee
-from kalshi_vol_edge.kalshi.reconcile import Discrepancy, reconcile_fills, summarize_discrepancies
+from kalshi_vol_edge.kalshi.reconcile import Discrepancy, reconcile_orders, summarize_discrepancies
 from kalshi_vol_edge.logging import configure_logging
 
 EXIT_OK, EXIT_ERROR, EXIT_USAGE = 0, 1, 2
@@ -114,7 +114,7 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
         print(
             f"dry run: {len(local)} local records vs {len(api)} recorded exchange fills from {root}"
         )
-        _print_discrepancies(reconcile_fills(local, api), args.json)
+        _print_discrepancies(reconcile_orders(local, api), args.json)
         return EXIT_OK
 
     settings = load_settings()
@@ -137,7 +137,7 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
                 print(f"synced: {synced}")
                 local = store.list_fills()
                 fills = await truth.get_all_fills()
-                _print_discrepancies(reconcile_fills(local, fills), args.json)
+                _print_discrepancies(reconcile_orders(local, fills), args.json)
         return EXIT_OK
 
     try:

@@ -2,7 +2,7 @@
 
 from kalshi_vol_edge.kalshi.client import KalshiClient, sign_request
 from kalshi_vol_edge.kalshi.fees import maker_fee, taker_fee
-from kalshi_vol_edge.kalshi.reconcile import Discrepancy, reconcile_fills
+from kalshi_vol_edge.kalshi.reconcile import Discrepancy, reconcile_orders
 from kalshi_vol_edge.kalshi.truth import KalshiTruth
 
 __all__ = [
@@ -10,7 +10,7 @@ __all__ = [
     "KalshiClient",
     "KalshiTruth",
     "maker_fee",
-    "reconcile_fills",
+    "reconcile_orders",
     "sign_request",
     "taker_fee",
 ]

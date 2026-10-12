@@ -23,7 +23,7 @@ from kalshi_vol_edge.backtest.engine import (
     load_fixture,
     run_backtest,
 )
-from kalshi_vol_edge.kalshi.reconcile import Discrepancy, reconcile_fills, summarize_discrepancies
+from kalshi_vol_edge.kalshi.reconcile import Discrepancy, reconcile_orders, summarize_discrepancies
 from kalshi_vol_edge.web.charts import Band, RefLine, bin_values, histogram, line_chart
 from kalshi_vol_edge.web.format import cents, num, usd, utc_time
 from kalshi_vol_edge.web.live import LiveView
@@ -220,7 +220,7 @@ def load_recorded_reconcile(fixtures: Path) -> ReconcileResult:
         source=f"Recorded fixture ({root.as_posix()})",
         local=local,
         api=api,
-        discrepancies=reconcile_fills(local, api),
+        discrepancies=reconcile_orders(local, api),
     )
 
 

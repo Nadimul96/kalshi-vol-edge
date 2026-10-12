@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 from kalshi_vol_edge.config import Settings
-from kalshi_vol_edge.kalshi.reconcile import reconcile_fills
+from kalshi_vol_edge.kalshi.reconcile import reconcile_orders
 from kalshi_vol_edge.kalshi.truth import cents_to_decimal, to_decimal
 from kalshi_vol_edge.storage.sqlite import TradeStore
 from kalshi_vol_edge.web.live import describe_error
@@ -105,7 +105,7 @@ async def load_account(settings: Settings, client: AccountReader | None) -> Acco
             source=f"Live account ({env}, read-only)",
             local=local,
             api=fills,
-            discrepancies=reconcile_fills(local, fills),
+            discrepancies=reconcile_orders(local, fills),
         ),
         local_db_note=note,
     )

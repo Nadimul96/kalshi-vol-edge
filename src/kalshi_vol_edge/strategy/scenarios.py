@@ -13,6 +13,8 @@ from typing import Any
 
 import numpy as np
 
+from kalshi_vol_edge.kalshi.fees import entry_fee
+
 MINUTES_PER_YEAR = 365.25 * 24 * 60
 
 
@@ -93,10 +95,18 @@ def compute_bracket_probabilities(
 def find_mispriced_brackets(
     sim_probs: dict[float, float],
     market_prices: dict[float, dict[str, Any]],
-    fee_per_contract: float = 0.005,
+    contracts: int = 1,
+    is_taker: bool = True,
     min_edge: float = 0.05,
 ) -> list[dict[str, Any]]:
-    """Strikes where simulated probability beats the ask by more than fees plus ``min_edge``."""
+    """Strikes where simulated probability beats the ask by more than fees plus ``min_edge``.
+
+    The fee is Kalshi's schedule for ``contracts`` at that ask (:func:`entry_fee`), per
+    contract: 1.75c at 50c for a taker, not a flat number. ``ev_per_dollar`` is the edge per
+    dollar paid (ask plus fee).
+    """
+    if contracts < 1:
+        raise ValueError(f"contracts must be at least 1, got {contracts}")
     out = []
     for strike, p_above in sim_probs.items():
         mp = market_prices.get(strike, {})
@@ -104,21 +114,22 @@ def find_mispriced_brackets(
             ("yes", p_above, mp.get("yes_ask", 0)),
             ("no", 1.0 - p_above, mp.get("no_ask", 0)),
         ):
-            if 0 < ask < 1:
-                edge = p - ask - fee_per_contract
-                if edge > min_edge:
-                    out.append(
-                        {
-                            "strike": strike,
-                            "side": side,
-                            "sim_prob": round(p, 4),
-                            "market_price": ask,
-                            "edge": round(edge, 4),
-                            "ev_per_dollar": round(
-                                p * (1 - ask) - (1 - p) * ask - fee_per_contract, 4
-                            ),
-                        }
-                    )
+            if not 0 < ask < 1:
+                continue
+            fee = entry_fee(contracts, ask, is_taker) / contracts
+            edge = p - ask - fee
+            if edge > min_edge:
+                out.append(
+                    {
+                        "strike": strike,
+                        "side": side,
+                        "sim_prob": round(p, 4),
+                        "market_price": ask,
+                        "fee_per_contract": round(fee, 4),
+                        "edge": round(edge, 4),
+                        "ev_per_dollar": round(edge / (ask + fee), 4),
+                    }
+                )
     out.sort(key=lambda x: x["edge"], reverse=True)
     return out
 

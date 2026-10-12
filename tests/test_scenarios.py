@@ -1,7 +1,9 @@
 """Monte Carlo scenario engine (ported from the source system's passing suite)."""
 
 import numpy as np
+import pytest
 
+from kalshi_vol_edge.kalshi.fees import maker_fee, taker_fee
 from kalshi_vol_edge.strategy.scenarios import (
     compute_bracket_probabilities,
     find_mispriced_brackets,
@@ -48,5 +50,22 @@ def test_full_paths_shape_and_simulation_result():
 
 def test_mispriced_brackets_require_edge_over_fee():
     probs = {70000.0: 0.80}
-    assert find_mispriced_brackets(probs, {70000.0: {"yes_ask": 0.60}})[0]["side"] == "yes"
+    (hit,) = find_mispriced_brackets(probs, {70000.0: {"yes_ask": 0.60}})
+    assert hit["side"] == "yes" and hit["fee_per_contract"] == taker_fee(1, 0.60)
+    assert hit["edge"] == pytest.approx(0.80 - 0.60 - taker_fee(1, 0.60), abs=1e-4)
+    assert hit["ev_per_dollar"] == pytest.approx(
+        hit["edge"] / (0.60 + taker_fee(1, 0.60)), abs=1e-4
+    )
     assert find_mispriced_brackets(probs, {70000.0: {"yes_ask": 0.78}}) == []
+
+
+def test_mispriced_brackets_use_the_real_fee_schedule():
+    """Regression: a flat $0.005 fee understated the 1.75c taker fee at 50c."""
+    probs = {70000.0: 0.56}
+    quotes = {70000.0: {"yes_ask": 0.50}}
+    # 6c raw edge: 4.25c after the real taker fee (below 5c), 5.56c after the maker fee
+    assert find_mispriced_brackets(probs, quotes) == []
+    (maker,) = find_mispriced_brackets(probs, quotes, is_taker=False)
+    assert maker["fee_per_contract"] == maker_fee(1, 0.50)
+    with pytest.raises(ValueError):
+        find_mispriced_brackets(probs, quotes, contracts=0)

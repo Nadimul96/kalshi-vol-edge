@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-
-from scipy.stats import norm
+from statistics import NormalDist
 
 MINUTES_PER_YEAR = 365.25 * 24 * 60
+_NORM = NormalDist()
 
 
 @dataclass
@@ -71,7 +71,7 @@ def compute_binary_greeks(
     sqrt_t = math.sqrt(t)
     sigma = annual_vol
     d2 = _d2(spot, strike, sigma, t)
-    p_above = float(norm.cdf(d2))
+    p_above = _NORM.cdf(d2)
 
     g.fair_value = p_above
     g.moneyness = math.log(spot / strike)
@@ -82,14 +82,14 @@ def compute_binary_greeks(
     elif market_no_price > 0:
         g.market_price, g.edge, g.side = market_no_price, (1 - p_above) - market_no_price, "no"
 
-    phi_d2 = float(norm.pdf(d2))
+    phi_d2 = _NORM.pdf(d2)
     g.delta = phi_d2 / (spot * sigma * sqrt_t)
     g.gamma = -phi_d2 * d2 / (spot**2 * sigma**2 * t)
 
     t_minus = max(t - 1 / MINUTES_PER_YEAR, 1e-12)
-    g.theta = float(norm.cdf(_d2(spot, strike, sigma, t_minus))) - p_above
+    g.theta = _NORM.cdf(_d2(spot, strike, sigma, t_minus)) - p_above
 
-    g.vega = float(norm.cdf(_d2(spot, strike, sigma + 0.01, t))) - p_above
+    g.vega = _NORM.cdf(_d2(spot, strike, sigma + 0.01, t)) - p_above
 
     vol_window = sigma * sqrt_t * spot
     g.gamma_zone = abs(spot - strike) < 0.5 * vol_window and minutes_left < 15

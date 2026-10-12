@@ -4,6 +4,7 @@
     kve reconcile --dry-run [--fixtures data/sample] [--db data/kve.sqlite3]
     kve fees      --price 0.62 --contracts 10
     kve dashboard [--host 127.0.0.1] [--port 8000]
+    kve report    --fixtures data/sample --out site
 
 Exit codes: 0 success, 1 unexpected error, 2 bad input (missing fixture, bad arguments).
 """
@@ -166,6 +167,20 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_report(args: argparse.Namespace) -> int:
+    """Render the backtest, basis and reconciliation pages as a static site."""
+    from kalshi_vol_edge.web.site import build_site
+
+    try:
+        written = build_site(Path(args.fixtures), Path(args.out))
+    except FixtureError as exc:
+        _print_err(f"cannot build report: {exc}")
+        return EXIT_USAGE
+    for path in written:
+        print(f"wrote {path}")
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Argument parser for ``kve``."""
     parser = argparse.ArgumentParser(
@@ -211,6 +226,11 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--host", default="127.0.0.1", help="bind address (default: localhost only)")
     d.add_argument("--port", type=int, default=8000)
     d.set_defaults(func=cmd_dashboard)
+
+    rp = sub.add_parser("report", help="render the static report (GitHub Pages)")
+    rp.add_argument("--fixtures", default="data/sample", help="fixture directory")
+    rp.add_argument("--out", default="site", help="output directory")
+    rp.set_defaults(func=cmd_report)
     return parser
 
 

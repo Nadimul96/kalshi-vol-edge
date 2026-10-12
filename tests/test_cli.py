@@ -76,3 +76,28 @@ def test_reconcile_live_runs_with_sync_store(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(KalshiTruth, "get_all_fills", fake_fills)
     assert main(["reconcile", "--db", str(tmp_path / "kve.sqlite3")]) == EXIT_OK
     assert "0 discrepancies" in capsys.readouterr().out
+
+
+def test_report_writes_a_static_site_with_relative_links(sample_dir: Path, tmp_path, capsys):
+    out = tmp_path / "site"
+    assert main(["report", "--fixtures", str(sample_dir), "--out", str(out)]) == EXIT_OK
+    names = sorted(p.name for p in out.iterdir())
+    assert names == [
+        ".nojekyll",
+        "backtest-kxbtcd.html",
+        "basis.html",
+        "index.html",
+        "reconcile.html",
+        "static",
+    ]
+    index = (out / "index.html").read_text()
+    assert "Quotes are modeled." in index and 'href="static/app.css"' in index
+    assert 'href="basis.html"' in index and 'href="/' not in index  # works from disk and Pages
+    assert "data-poll" not in index and "Live view runs locally" in index
+    assert (out / "static" / "app.js").exists()
+    assert "Direction flips" in (out / "basis.html").read_text()
+
+
+def test_report_refuses_a_missing_fixture(tmp_path, capsys):
+    assert main(["report", "--fixtures", str(tmp_path / "nope"), "--out", str(tmp_path)]) == 2
+    assert "fixture directory not found" in capsys.readouterr().err

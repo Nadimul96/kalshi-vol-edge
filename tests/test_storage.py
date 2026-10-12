@@ -2,6 +2,8 @@
 
 import sqlite3
 
+import pytest
+
 from kalshi_vol_edge.storage.sqlite import TradeStore
 
 
@@ -62,3 +64,20 @@ def test_store_closes_connection_and_persists_to_disk(tmp_path):
     store.close()  # idempotent
     with sqlite3.connect(path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0] == 1
+
+
+def test_read_only_store_reads_but_never_writes_or_creates(tmp_path):
+    missing = tmp_path / "missing.sqlite3"
+    with pytest.raises(FileNotFoundError):
+        TradeStore(missing, read_only=True)
+    assert not missing.exists()
+
+    path = tmp_path / "kve.sqlite3"
+    with TradeStore(path) as store:
+        store.record_fill(
+            {"fill_id": "f1", "ticker": "T", "side": "yes", "count_fp": "1", "created_time": "x"}
+        )
+    with TradeStore(path, read_only=True) as ro:
+        assert [f["fill_id"] for f in ro.list_fills()] == ["f1"]
+        with pytest.raises(sqlite3.OperationalError):
+            ro.record_fill({"fill_id": "f2", "ticker": "T", "side": "no", "count_fp": "1"})

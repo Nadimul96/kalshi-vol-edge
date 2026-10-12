@@ -71,13 +71,23 @@ def _now() -> str:
 class TradeStore:
     """Thin wrapper around a sqlite3 connection with idempotent upserts."""
 
-    def __init__(self, path: Path | str = ":memory:") -> None:
+    def __init__(self, path: Path | str = ":memory:", read_only: bool = False) -> None:
         self.path = str(path)
+        self.read_only = read_only
+        if read_only:
+            # mode=ro never creates the file and rejects every write at the SQLite level.
+            if not Path(self.path).exists():
+                raise FileNotFoundError(f"database not found: {self.path}")
+            uri = Path(self.path).resolve().as_uri() + "?mode=ro"
+            self._conn = sqlite3.connect(uri, uri=True)
+            self._conn.row_factory = sqlite3.Row
+            return
         if self.path != ":memory:":
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self.path)
         self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL") if self.path != ":memory:" else None
+        if self.path != ":memory:":
+            self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(SCHEMA)
         self._conn.commit()
 
@@ -90,7 +100,8 @@ class TradeStore:
     def close(self) -> None:
         """Commit and close. Safe to call twice."""
         if self._conn is not None:
-            self._conn.commit()
+            if not self.read_only:
+                self._conn.commit()
             self._conn.close()
             self._conn = None  # type: ignore[assignment]
 

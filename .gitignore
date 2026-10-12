@@ -23,3 +23,5 @@ models/
 *.pt
 *.joblib
 .DS_Store
+site/
+.mypy_cache/
